@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIBO</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" 
+     crossorigin="anonymous">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .wrapper {
+            height: 100%;
+            width: 100%;
+            /* background: #FA4A0C; */
+            background: #FFF;
+        }
+
+        .container {
+            width: 420px;
+            height: 100vh;
+            max-width: 100%;
+            margin: auto;
+
+            display: flex;
+            /* justify-content: center; */
+            place-items: center;
+        }
+
+        .login-form{
+            height: 400px;
+            width: 100%;
+            background-color: green;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+
+            background: #fff;
+            border-radius: 7px;
+            box-shadow: 1px 2px 5px rgba(63, 60, 60, 0.541);
+        }
+
+        .submit-btn {
+            margin: auto;
+            background: #FA4A0C;
+            color: #fff;
+            padding: 10px 10px;
+            border: none;
+            border-radius: 10px;
+            width: 100%;
+
+            display: block;
+            font-size: 14px;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            margin: auto;
+        }
+
+        .input-fields-box {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+            margin-top: -40px;
+        }
+
+        input {
+            padding: 10px;
+            border: 1px solid grey;
+            outline: none;
+            display: block;
+            margin-bottom: 15px;
+            margin-top: 3px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: gray;
+        }
+
+        .heading {
+            font-weight: 600;
+            margin: 20px auto 0;
+            font-size: 24px;
+            color: #FA4A0C;
+        }
+a.login-link{
+    text-decoration: none;
+    font-size: 20px;
+    padding: 8px 15px;
+    border-radius: 6px;
+    background: #FA4A0C;
+    color:#fff;
+    text-align: center;
+    
+}
+        .np1 {
+            color: grey;
+            text-align: center;
+            padding-bottom: 10px;
+            color: #F00;
+        }
+
+        @media only screen and (max-width:575px) {
+            .login-form {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="container">
+
+            <div class="login-form ">
+                <div class="success-msg d-none text-center m-auto">
+                    <h4 class="text-success text-center mx-auto my-4">Your password successfully Changed... 
+                        <br/> Goto your login page</h4>
+           <!-- <a href="https://cibo-1.web.app/"  class="login-link mt-4 mx-auto">Login here</a> -->
+                </div>
+                <div class="spinner-border d-none m-auto" role="status">
+                    
+                  </div>
+                <div class="login-form login-wrap ">
+                    <div class="heading">Reset password</div>
+
+                    <form >
+    
+                        <div class="input-fields-box">
+                            <p class="np1"></p>
+                            <label for="newPassword">New Password
+                                <input id="np" type="text" />
+                            </label>
+                            <label for="ConfirmPassword">Confirm Password
+                                <input id="cp" type="text" />
+                            </label>
+                        </div>
+                        <button onclick="submit_form(event)" type="submit" class="submit-btn">Submit</button>
+                    </form>
+                </div>
+               
+            </div>
+
+
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+
+    <script>
+        var email = '<%=email%>'
+        function submit_form(event) {
+            event.preventDefault();
+
+            var np = document.getElementById("np").value;
+            np_length = np.length;
+            var cp = document.getElementById("cp").value;
+            var np1 = document.querySelector(".np1");
+            np1.innerHTML = "";
+            if (np == "" && cp == '' || np == "" || cp == "") {
+                np1.innerHTML = "Please fill all the blanks";
+            }
+            else if (np.length < 6) {
+                document.getElementById('np').value = "";
+                document.getElementById('cp').value = "";
+                np1.innerHTML = "Your password must be 6 or more"
+            }
+            else if (np != cp) {
+                document.getElementById('np').value = "";
+                document.getElementById('cp').value = "";
+                np1.innerHTML = "Your passwords are not same"
+            }
+            else {
+                document.getElementById('np').value = "";
+                document.getElementById('cp').value = "";
+               
+                var spinner = document.querySelector(".spinner-border").classList;
+                var loginForm = document.querySelector(".login-wrap").classList;
+                var showMsg = document.querySelector(".success-msg").classList;
+                spinner.remove('d-none');
+                loginForm.add('d-none')
+                var data = {
+                    New_password:np,
+                    confirm_password:cp
+                }
+                axios.post(`http://localhost:4000/forget-response/${email}`,data).then(res=>{
+                    if(res){
+                        spinner.add('d-none');
+                loginForm.remove('d-none')
+                if(res.status===200){
+                    showMsg.remove('d-none')
+                    spinner.add('d-none');
+                loginForm.add('d-none')
+                   
+                }
+                    }
+                })
+            }
+        }
+    </script>
+
+</body>
+
+</html>
