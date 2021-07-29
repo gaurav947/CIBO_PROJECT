@@ -64,7 +64,6 @@ app.post("/user", function (req, res) {
     else if (req.headers.authorization && req.body.otp) {
         token = req.headers.authorization.split(' ')[1];
         jwtr.verify(token, "creation").then((tokenv) => {
-            console.log(tokenv);
             user.findOne({ _id: tokenv._id }, function (err, result) {
                 if (result.otp === req.body.otp) {
                     return res.status(200).json({
@@ -98,7 +97,6 @@ app.post("/user", function (req, res) {
             var lat = parseFloat(req.body.lat);
             var long = parseFloat(req.body.long);
             jwtr.verify(token, "creation").then((tokenv) => {
-                console.log(tokenv);
                 user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: long }, function (err, result) {
                     if (result.otp === req.body.otp) {
                         return res.status(200).json({
@@ -287,7 +285,9 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
 })
 //login for user
 app.post('/login', function (req, res) {
-    if(req.body.type==="mannual"){
+    console.log("ok");
+    if(req.body.type==="manual"){
+        console.log("login");
         if (req.body.email != "" && req.body.password != "") {
         user.findOne({ email: req.body.email }, function (err, result) {
             if (result) {
@@ -1280,13 +1280,9 @@ app.post("/logout", middleware.isloggedin, function (req, res) {
     })
 })
 
-//server listen
-app.listen('4000', function (err, res) {
-    if (res)
-        console.log("Port is activated at 4000")
-    if (err) {
-        console.log(err);
-        console.log("Problem with activating port");
-    }
 
+//server listen
+var port = process.env.PORT || 8086;
+app.listen(port, function (err,result) {
+    console.log(`Port is activated at ${port}`)
 })

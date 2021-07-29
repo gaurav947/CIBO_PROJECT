@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node controller"
+    "start": "nodemon controller"
   },
   "author": "",
   "license": "ISC",

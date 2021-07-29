@@ -1,9 +1,6 @@
 var mongoose = require("mongoose");
-mongoose.connect("mongodb://localhost:27017/CIBO",{useNewUrlParser:true,useUnifiedTopology:true}).then(res=>{
-    console.log("Database is created from seller_schema")
-}).catch(err=>{
-    console.log(err);
-})
+var db = require('./db_init');
+
 var s_schema = new mongoose.Schema({
     image:String,
     bio:String,

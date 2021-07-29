@@ -1,9 +1,5 @@
 var mongoose = require('mongoose');
-mongoose.connect('mongodb://localhost:27017/CIBO',{useNewUrlParser:true,useUnifiedTopology:true}).then(res=>{
-    console.log("Database is created from user_schema")
-}).catch(err=>{
-    console.log(err);
-})
+var db = require('./db_init');
 var u_schema = new mongoose.Schema({
     image:{type:String,default:"image//default.png"},
     name:{type:String,minlength:5,maxlength:20,required:true},
@@ -15,8 +11,8 @@ var u_schema = new mongoose.Schema({
     lat:{type:Number,default:0},
     long:{type:Number,default:0},
     otp:{type:Number},
-    google_id:{type:String,required:true},
-    facebook_id:{type:String,required:true}
+    google_id:{type:String},
+    facebook_id:{type:String}
 })
 u_schema.index({
     location: "2dsphere"
