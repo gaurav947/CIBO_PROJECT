@@ -1,0 +1,38 @@
+version: "3"
+services:
+    web:
+        image: node:lts-slim
+        restart: always
+        build:
+            context: .
+            dockerfile: ./docker/Dockerfile
+        container_name: nodejs
+        environment:
+            NODE_ENV: production
+        ports:
+            - "5000:8086"
+        volumes:
+            - .:/app
+        # depends_on:
+        #  - nginx
+        # - /app/node_modules
+        # env_file:
+        #   - ./envFiles/.env
+        links:
+            - "redis"
+        environment:
+            - REDIS_URL=redis://cache
+    redis:
+        image: "redis"
+        container_name: cache
+        expose:
+           - 6379
+    # mongo:
+    #   image: "mongo"
+    #   restart: always
+    #   ports:
+    #    - "27017:27017"
+    #   volumes:
+    #     - ./data:/data/db
+volumes:
+    data:

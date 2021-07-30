@@ -19,7 +19,7 @@ mongoose.set("useFindAndModify", false);
 var redis = require('redis');
 var JWTR = require('jwt-redis').default;
 //ES6 import JWTR from 'jwt-redis';
-var redisClient = redis.createClient();
+var redisClient = redis.createClient(process.env.REDIS_URL);
 var jwtr = new JWTR(redisClient);
 
 //otp-generator => for generating OTP
@@ -285,9 +285,7 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
 })
 //login for user
 app.post('/login', function (req, res) {
-    console.log("ok");
     if(req.body.type==="manual"){
-        console.log("login");
         if (req.body.email != "" && req.body.password != "") {
         user.findOne({ email: req.body.email }, function (err, result) {
             if (result) {
@@ -721,6 +719,11 @@ app.post('/forget', function (req, res) {
         message: "Link send to your email"
     })
 });
+
+app.get('/',(req,res)=>{
+ res.send('hellow')
+
+})
 app.get('/forget-reset-password/:email', function (req, res) {
     res.render('reset', { email: req.params.email });
     valid = 1;
