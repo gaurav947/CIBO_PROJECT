@@ -34,19 +34,44 @@ var nodemailer = require("nodemailer");
 
 app.set('view engine', 'ejs');
 
+const dotenv = require('dotenv');
+dotenv.config();
+
+var multer = require("multer");
+
 app.use(express.static(__dirname));
-var multer = require('multer');
+const AWS = require('aws-sdk');
+const multers3 = require('multer-s3');
+const s3 = new AWS.S3({
+    accessKeyId:process.env.AWS_ACCESS_KEY,
+    secretAccessKey:process.env.AWS_SECRET_ACCESS_KEY
+});
+
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type, only JPEG and PNG is allowed!"), false);
+    }
+};
+const upload = multer({fileFilter,storage: multers3({
+        acl: "public-read",
+        s3,
+        bucket: process.env.AWSBucketName,
+        metadata: function (req, file, cb) {
+        cb(null, { fieldName: "TESTING_METADATA" });
+        },
+        contentType: multers3.AUTO_CONTENT_TYPE,
+        key: function (req, file, cb) {
+        cb(null, Date.now().toString()+path.extname(file.originalname));
+        },
+    }),
+});
+
+
 var path = require('path');
 const { resolveSoa } = require("dns");
-const storage = multer.diskStorage({
-    destination: function (req, file, callback) {
-        callback(null, './image');
-    },
-    filename: function (req, file, callback) {
-        callback(null, file.fieldname + Date.now() + path.extname(file.originalname));
-    }
-})
-const upload = multer({ storage: storage });
+
 //for creating user
 app.post("/user", function (req, res) {
     if (req.body.password !== req.body.confirm_p) {
@@ -202,7 +227,7 @@ app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res
         jwtr.verify(token, "creation").then(tokenv => {
             if (req.files.length) {
                 user.updateOne({ _id: tokenv._id }, {
-                    image: req.files[0].path, name: req.body.name, email: req.body.email, phone_number: req.body.phone_number,
+                    image: req.files[0].location, name: req.body.name, email: req.body.email, phone_number: req.body.phone_number,
                     bio: req.body.bio
                 }, function (err, result) {
 
@@ -254,7 +279,7 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
         user.findOne({ _id: tokenv._id }, function (err, result) {
             if (result) {
                 let data = {
-                    image: `http://localhost:4000/${result.image}`,
+                    image: result.image,
                     name: result.name,
                     email: result.email,
                     phone_number: result.phone_number,
@@ -342,37 +367,69 @@ app.post('/login', function (req, res) {
             user.findOne({google_id:req.body.google_id},function(err,result){
                 if(result && result.length)
                 {
-                    return res.json({
-                        sucess:true,
-                        message:"Login"
+                    let add = {
+                        _id:result._id,
+                        google_id:result.google_id,
+                        email:result.email,
+                        name:result.name
+                    }
+                    jwtr.sign(add,'creation').then(g_token=>{s
+                        return res.json({
+                            sucess:true,
+                            token:g_token,
+                            message:"sucessfully login"
+                        })
+                    }).catch(err=>{
+                        return res.status(400).json({
+                            error:true,
+                            err:err,
+                            message:"Something went wrong"
+                        })
                     })
                 }
-                else if(result)
+                else if(err)
+                {
+                    return res.status(400).json({
+                        error:true,
+                        err:err,
+                        message:"Something went wrong"
+                    })
+                }
+                else
                 {
                     user.create({google_id:req.body.google_id,name:req.body.name,email:req.body.email},function(err,result){
                         if(result)
                         {
-                            return res.json({
-                                sucess:true,
-                                message:"login with user register"
+                            let add = {
+                                _id:result._id,
+                                google_id:result.google_id,
+                                email:result.email,
+                                name:result.name
+                            }
+                            jwtr.sign(add,'creation').then(g_token=>{s
+                                return res.json({
+                                    sucess:true,
+                                    token:g_token,
+                                    message:"sucessfully login"
+                                })
+                            }).catch(err=>{
+                                return res.status(400).json({
+                                    error:true,
+                                    err:err,
+                                    message:"Something went wrong"
+                                })
                             })
                         }
                         else if(err)
                         {
-                            return res.status.json({
+                            return res.status(400).json({
                                 error:true,
                                 message:err
                             })
                         }
                     })
                 }
-                else
-                {
-                    return res.status(400).json({
-                        error:true,
-                        message:""
-                    })
-                }
+                
             })
         }
         else
@@ -385,24 +442,60 @@ app.post('/login', function (req, res) {
     }
     else if(req.body.type === 'facebook')
     {
-        if(req.body.facebook_id!="" && req.body.email!= "" && req.body.name != "")
+        if(req.body.facebook_id!="" && req.body.name != "")
         {   
             user.findOne({facebook_id:req.body.facebook},function(err,result){
                 if(result && result.length)
                 {
-                    return res.json({
-                        status:true,
-                        message:"login already"
+                    let add = {
+                        _id:result._id,
+                        facebook_id:result.facebook_id,
+                        name:result.name
+                    }
+                    jwtr.sign(add,'creation').then(f_token=>{s
+                        return res.json({
+                            sucess:true,
+                            token:f_token,
+                            message:"sucessfully login"
+                        })
+                    }).catch(err=>{
+                        return res.status(400).json({
+                            error:true,
+                            err:err,
+                            message:"Something went wrong"
+                        })
                     })
                 }
-                else if(result)
+                else if(err)
                 {
-                    user.create({facebook_id:req.body.facebook_id,name:req.body.name,email:req.body.email},function(err,result){
+                    return res.status(400).json({
+                        error:true,
+                        err:err,
+                        message:"Something went wrong"
+                    })
+                }
+                else 
+                {
+                    user.create({facebook_id:req.body.facebook_id,name:req.body.name},function(err,result){
                         if(result)
                         {
-                            return res.json({
-                                status:true,
-                                message:"login"
+                            let add = {
+                                _id:result._id,
+                                facebook_id:result.facebook_id,
+                                name:result.name
+                            }
+                            jwtr.sign(add,'creation').then(f_token=>{s
+                                return res.json({
+                                    sucess:true,
+                                    token:f_token,
+                                    message:"sucessfully login"
+                                })
+                            }).catch(err=>{
+                                return res.status(400).json({
+                                    error:true,
+                                    err:err,
+                                    message:"Something went wrong"
+                                })
                             })
                         }
                         else if(err)
@@ -421,13 +514,7 @@ app.post('/login', function (req, res) {
                         }
                     })
                 }
-                else
-                {
-                    return res.status(400).json({
-                        error:true,
-                        message:"Something went wrong"
-                    })
-                }
+                
             })
         }
         else
@@ -437,6 +524,13 @@ app.post('/login', function (req, res) {
                 message:"Please give all the required fields"
             })
         }
+    }
+    else
+    {
+        res.status(400).json({
+            error:true,
+            message:"Please define the type of login"
+        })
     }
 })
 
@@ -449,18 +543,18 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
         for (let i = 0; i < (req.files).length; i++) {
             if (req.files[i].fieldname === "pan_Image") {
                 j = j + 1;
-                data.Pan_Image = req.files[i].path;
+                data.Pan_Image = req.files[i].location;
             }
             else if (req.files[i].fieldname === "adhaar_front") {
                 j = j + 1;
-                data.Adhaar_front = req.files[i].path;
+                data.Adhaar_front = req.files[i].location;
             }
             else if (req.files[i].fieldname === "adhaar_back") {
                 j = j + 1;
                 data.Adhaar_back = req.files[i].path;
             }
             else if (req.files[i].fieldname === "image") {
-                data.image = req.files[i].path;
+                data.image = req.files[i].location;
             }
         }
         if (j < 3) {
@@ -972,7 +1066,7 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
     jwtr.verify(token, "creation").then(tokenv => {
         let data = {
             user_id: tokenv._id,
-            image: req.files[0].path,
+            image: req.files[0].location,
             title: req.body.title,
             desc: req.body.description
         }
@@ -1010,11 +1104,11 @@ app.post('/add-items', upload.any(), middleware.isloggedin, function (req, res) 
     }
     else {
         jwtr.verify(token, "creation").then(tokenv => {
-            seller.findOne({ _id: tokenv._id }, function (err, result) {
+            seller.findOne({_id: tokenv._id}, function (err, result) {
                 if (result.verified_seller) {
                     let data = {
                         seller_id: tokenv._id,
-                        i_image: req.files[0].path,
+                        i_image: req.files[0].location,
                         item_name: req.body.item_name,
                         category: req.body.category,
                         price: req.body.price,
@@ -1052,6 +1146,7 @@ app.post('/add-items', upload.any(), middleware.isloggedin, function (req, res) 
             })
         }).catch(err => {
             return res.status(400).json({
+                err:err,
                 message: "Something went wrong"
             })
         })
