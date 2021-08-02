@@ -365,7 +365,7 @@ app.post('/login', function (req, res) {
         if(req.body.google_id!="" && req.body.email!= "" && req.body.name != "")
         {
             user.findOne({google_id:req.body.google_id},function(err,result){
-                if(result && result.length)
+                if(result)
                 {
                     let add = {
                         _id:result._id,
@@ -373,7 +373,7 @@ app.post('/login', function (req, res) {
                         email:result.email,
                         name:result.name
                     }
-                    jwtr.sign(add,'creation').then(g_token=>{s
+                    jwtr.sign(add,'creation').then(g_token=>{
                         return res.json({
                             sucess:true,
                             token:g_token,
@@ -406,16 +406,16 @@ app.post('/login', function (req, res) {
                                 email:result.email,
                                 name:result.name
                             }
-                            jwtr.sign(add,'creation').then(g_token=>{s
+                            jwtr.sign(add,'creation').then(g_token=>{
                                 return res.json({
                                     sucess:true,
                                     token:g_token,
                                     message:"sucessfully login"
                                 })
-                            }).catch(err=>{
+                            }).catch(g_err=>{
                                 return res.status(400).json({
                                     error:true,
-                                    err:err,
+                                    err:g_err,
                                     message:"Something went wrong"
                                 })
                             })
@@ -444,15 +444,15 @@ app.post('/login', function (req, res) {
     {
         if(req.body.facebook_id!="" && req.body.name != "")
         {   
-            user.findOne({facebook_id:req.body.facebook},function(err,result){
-                if(result && result.length)
+            user.findOne({facebook_id:req.body.facebook_id},function(err,result){
+                if(result)
                 {
                     let add = {
                         _id:result._id,
                         facebook_id:result.facebook_id,
                         name:result.name
                     }
-                    jwtr.sign(add,'creation').then(f_token=>{s
+                    jwtr.sign(add,'creation').then(f_token=>{
                         return res.json({
                             sucess:true,
                             token:f_token,
@@ -476,7 +476,7 @@ app.post('/login', function (req, res) {
                 }
                 else 
                 {
-                    user.create({facebook_id:req.body.facebook_id,name:req.body.name},function(err,result){
+                    user.create({facebook_id:req.body.facebook_id,name:req.body.name,email:`${req.body.name.split(' ')[0]}${Date.now()}@gmail.com`},function(err,result){
                         if(result)
                         {
                             let add = {
@@ -484,7 +484,7 @@ app.post('/login', function (req, res) {
                                 facebook_id:result.facebook_id,
                                 name:result.name
                             }
-                            jwtr.sign(add,'creation').then(f_token=>{s
+                            jwtr.sign(add,'creation').then(f_token=>{
                                 return res.json({
                                     sucess:true,
                                     token:f_token,
@@ -514,7 +514,6 @@ app.post('/login', function (req, res) {
                         }
                     })
                 }
-                
             })
         }
         else
@@ -536,6 +535,7 @@ app.post('/login', function (req, res) {
 
 //become a seller
 app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
+    console.log(req.body);
     token = req.headers.authorization.split(' ')[1];
     if (req.files && req.body.street_name && req.body.city && req.body.state && req.body.pin) {
         var j = 0;

@@ -3,6 +3,7 @@ var db = require('./db_init');
 
 var i_schema = new mongoose.Schema({
     seller_id:{type:mongoose.Types.ObjectId,ref:"users",required:true},
+    i_active:{type:String,enum:["true","false"],default:"true"},
     i_image:{type:String,required:true},
     item_name:{type:String,required:true},
     category:{type:String,required:true},
