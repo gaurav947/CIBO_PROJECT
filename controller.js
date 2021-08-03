@@ -815,7 +815,6 @@ app.post('/forget', function (req, res) {
 
 app.get('/',(req,res)=>{
  res.send('hellow')
-
 })
 app.get('/forget-reset-password/:email', function (req, res) {
     res.render('reset', { email: req.params.email });
@@ -1501,20 +1500,107 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
 
 //openning item
 app.get('/view_item1', middleware.isloggedin, function (req, res) {
-    item.findOne({ _id: req.body.item_id }, function (err, result) {
-        if (result) {
-            return res.json({
-                item: result,
-                sucess: true,
-                message: "Item fetched sucessfully"
-            })
-        }
-        if (err) {
-            return res.status(400).json({
-                error: true,
-                message: "Error while fetching item"
-            })
-        }
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token, "creation").then(tokenv => {
+        user.findOne({ _id: tokenv._id }, function (err, result) {
+            if(result){
+                item.aggregate([
+                    {
+                        $match:{
+                            "_id":mongoose.Types.ObjectId(req.body.item_id)
+                        }
+                    },
+                    {
+                        $lookup:{
+                            from:"favorites",
+                            pipeline:[
+                                {
+                                    $match:{
+                                        $expr:{
+                                            $and:[
+                                                {$eq:["$item_id",mongoose.Types.ObjectId(req.body.item_id)]},
+                                               {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]}
+                                            ]
+                                        }
+                                    }
+                                }                        
+                            ],
+                            as:"favorites"
+                        }
+                    },
+                    {
+                        $unwind:{
+                           path:"$favorites",
+                           preserveNullAndEmptyArrays:true
+                        }
+                    },
+                    {
+                        $lookup:{
+                            from:"users",
+                            let:{sellerid:'$seller_id'},
+                            pipeline:[
+                                {
+                                    $geoNear:{
+                                            near: { type: "point", coordinates: [result.long, result.lat] },
+                                            distanceField: "dist.calculated",
+                                            maxDistance: 5 * 1000,
+                                            distanceMultiplier: 1 / 1000,
+                                            spherical: true
+                                    }
+                                },
+                                {
+                                    $match:{
+                                        $expr:{
+                                            $and:[
+                                                {$eq:["$$sellerid","$_id"]}
+                                            ]
+                                        }
+                                    }
+                                    }
+                                     
+                            ],
+                            as:'seller'
+                        }
+                    },
+                    {
+                        $unwind:"$seller"
+                    },
+                    {
+                        $project:{
+                            "i_image":1,
+                            "item_name":1,
+                            "price":1,
+                            "seller_name":"$seller.name",
+                            "distance":"$seller.dist.calculated",
+                            "description":1,
+                            "liked":"$favorites.like_status"
+
+                        }
+                    }
+        
+                ],function(error,data){
+                    if(data)
+                    {
+                        return res.json({
+                            sucess:true,
+                            result:data
+                        })
+                    }
+                    if(error)
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            Message:error
+                        })
+                    }
+                })
+            }
+        })
+    }).catch(err=>{
+        return res.status(400).json({
+            error:true,
+            message:"Something went wrong"
+        })
     })
 })
 
