@@ -1321,6 +1321,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
                     if(d_result && d_result.n)
                     {
                         favorite.deleteOne({item_id:req.body.item_id},function(f_err,f_result){
+                            console.log("result=>",f_result);
                             if(f_result && f_result.n)
                             {
                                 return res.json({
@@ -1328,9 +1329,16 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
                                     message:"Your item is sucessfully deleted"
                                 })   
                             }
+                            else if(f_result.n === 0)
+                            {
+                                return res.json({
+                                    sucess:true,
+                                    message:"Your item is sucessfully deleted"
+                                }) 
+                            }
                             else
                             {
-                                return res.status.json({
+                                return res.status(400).json({
                                     error:true,
                                     err:f_err,
                                     message:"Error while deleting from favorites"
