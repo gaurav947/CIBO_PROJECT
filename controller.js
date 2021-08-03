@@ -80,7 +80,7 @@ app.post("/user", function (req, res) {
             message: "Passwords are not matched!!.."
         })
     }
-    else if (/^[a-zA-Z0-9]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
+    else if (/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
         return res.status(400).json({
             error: true,
             message: "Please check your mail is not in format"
@@ -1103,7 +1103,10 @@ app.post('/add-items', upload.any(), middleware.isloggedin, function (req, res) 
         })
     }
     else {
-        jwtr.verify(token, "creation").then(tokenv => {
+        if(req.files != ("" || undefined)   && req.body.item_name ("" || undefined)&& req.body.category ("" || undefined) && req.body.price != ("" || undefined) && req.body.description != ("" || undefined))
+        {
+            console.log(req.body.price);
+            jwtr.verify(token, "creation").then(tokenv => {
             seller.findOne({_id: tokenv._id}, function (err, result) {
                 if (result.verified_seller) {
                     let data = {
@@ -1144,14 +1147,23 @@ app.post('/add-items', upload.any(), middleware.isloggedin, function (req, res) 
                     })
                 }
             })
-        }).catch(err => {
-            return res.status(400).json({
-                err:err,
-                message: "Something went wrong"
+            }).catch(err => {
+                return res.status(400).json({
+                    err:err,
+                    message: "Something went wrong"
+                })
             })
-        })
+        }
+        else
+        {
+            return res.status(400).json({
+                error:true,
+                message:"Please fill all the blanks"
+            })
+        }
     }
 })
+
 
 //new item on the App
 app.get('/new-items', middleware.isloggedin, function (req, res) {
