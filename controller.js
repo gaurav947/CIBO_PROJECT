@@ -1396,7 +1396,7 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
                     {
                         $lookup: {
                             from: "users",
-                            let: { seller_id: "$seller_id" },
+                            let: { seller_id: "$seller_id",active:"$i_active"},
                             pipeline: [
                                 {
                                     $geoNear: {
@@ -1411,6 +1411,7 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
                                     $match: {
                                         $expr: {
                                             $and: [
+                                                {$eq:["$$active","true"]},
                                                 { $eq: ["$$seller_id", "$_id"] },
                                                 {
                                                     $ne: ["$$seller_id", mongoose.Types.ObjectId(tokenv._id)]
