@@ -2,7 +2,6 @@ var mongoose = require("mongoose");
 var express = require('express');
 
 var app = express();
-
 var user = require('./user_schema');
 var seller = require('./seller_schema');
 var item = require('./item_schema');
@@ -1059,7 +1058,6 @@ app.get('/view-favorite',middleware.isloggedin,function(req,res){
     })
     
 })
-
 //blogs
 app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -1094,63 +1092,136 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
 
 })
 //storing items by seller
-app.post('/add-items', upload.any(), middleware.isloggedin, function (req, res) {
+app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-    if (req.body.item_name.length < 6) {
-        return res.status(400).json({
-            error: true,
-            message: "Item name is too short"
-        })
-    }
-    else {
-        if(req.files != ("" || undefined)   && req.body.item_name ("" || undefined)&& req.body.category ("" || undefined) && req.body.price != ("" || undefined) && req.body.description != ("" || undefined))
-        {
-            console.log(req.body.price);
-            jwtr.verify(token, "creation").then(tokenv => {
-            seller.findOne({_id: tokenv._id}, function (err, result) {
-                if (result.verified_seller) {
-                    let data = {
-                        seller_id: tokenv._id,
-                        i_image: req.files[0].location,
-                        item_name: req.body.item_name,
-                        category: req.body.category,
-                        price: req.body.price,
-                        description: req.body.description,
-                        special_notes: req.body.special_notes
+    if(req.body.operation === 'add'){
+        if (req.body.item_name.length < 6) {
+            return res.status(400).json({
+                error: true,
+                message: "Item name is too short"
+            })
+        }
+        else {
+            if(req.files && req.body.item_name && req.body.category && req.body.price && req.body.description)
+            {
+                jwtr.verify(token, "creation").then(tokenv => {
+                seller.findOne({_id: tokenv._id}, function (err, result) {
+                    if (result.verified_seller) {
+                        let data = {
+                            seller_id: tokenv._id,
+                            i_image: req.files[0].location,
+                            item_name: req.body.item_name,
+                            category: req.body.category,
+                            price: req.body.price,
+                            description: req.body.description,
+                            special_notes: req.body.special_notes
+                        }
+                        item.create(data, function (err, result) {
+                            if (result) {
+                                return res.json({
+                                    status: true,
+                                    message: "Your item is added"
+                                })
+                            }
+                            if (err) {
+                                return res.status(400).json({
+                                    error: true,
+                                    err: err,
+                                    message: "Error while adding"
+                                })
+                            }
+                        })
                     }
-                    item.create(data, function (err, result) {
-                        if (result) {
-                            return res.json({
-                                status: true,
-                                message: "Your item is added"
-                            })
-                        }
-                        if (err) {
-                            return res.status(400).json({
-                                error: true,
-                                err: err,
-                                message: "Error while adding"
-                            })
-                        }
-                    })
-                }
-                else if (err) {
+                    else if (err) {
+                        return res.status(400).json({
+                            error: true,
+                            message: "Something went wrong"
+                        })
+                    }
+                    else {
+                        return res.status(400).json({
+                            error: true,
+                            message: "May be you are not a valid seller"
+                        })
+                    }
+                })
+                }).catch(err => {
                     return res.status(400).json({
-                        error: true,
+                        err:err,
                         message: "Something went wrong"
                     })
-                }
-                else {
-                    return res.status(400).json({
-                        error: true,
-                        message: "May be you are not a valid seller"
-                    })
-                }
-            })
-            }).catch(err => {
+                })
+            }
+            else
+            {
                 return res.status(400).json({
-                    err:err,
-                    message: "Something went wrong"
+                    error:true,
+                    message:"Please fill all the blanks"
+                })
+            }
+        }
+    }
+    else if(req.body.operation === 'status')
+    {
+        if(req.body.item_id)
+        {
+            jwtr.verify(token,'creation').then(tokenv=>{
+                item.findOne({_id:req.body.item_id,seller_id:tokenv._id},function(err,result){
+                    if(result)
+                    {
+                        if(result.i_active === "true")
+                        {
+                            item.findOneAndUpdate({_id:req.body.item_id},{i_active:"false"},function(u_err,u_result){
+                                if(u_result)
+                                {
+                                    return res.json({
+                                        sucess:true,
+                                        message:"Operation sucessfull -> status change"
+                                    })
+                                }
+                                else
+                                {
+                                    return res.status(400).json({
+                                        error:true,
+                                        err:u_err,
+                                        message:"Something went wrong"
+                                    })
+                                }
+                            })
+                        }
+                        else if(result.i_active === "false")
+                        {
+                            item.findOneAndUpdate({_id:req.body.item_id},{i_active:"true"},function(u_err,u_result){
+                                if(u_result)
+                                {
+                                    return res.json({
+                                        sucess:true,
+                                        message:"Operation sucessfull -> status change"
+                                    })
+                                }
+                                else
+                                {
+                                    return res.status(400).json({
+                                        error:true,
+                                        err:u_err,
+                                        message:"Something went wrong"
+                                    })
+                                }
+                            })
+                        }
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            message:"Error in item while changing status"
+                        })
+                    }
+                })
+            }).catch(err=>{
+                return res.status(400).json({
+                    error:true,
+                    message:"Something went wrong"
                 })
             })
         }
@@ -1158,10 +1229,149 @@ app.post('/add-items', upload.any(), middleware.isloggedin, function (req, res) 
         {
             return res.status(400).json({
                 error:true,
-                message:"Please fill all the blanks"
+                message:"Provide all the data"
             })
         }
     }
+    else if(req.body.operation === 'edit')
+    {
+        jwtr.verify(token,'creation').then(tokenv=>{
+            if(req.files.length && req.body.item_name && req.body.category && req.body.price && req.body.description){
+                let data = {
+                i_image:req.files[0].location,
+                item_name:req.body.item_name,
+                category:req.body.category,
+                price:req.body.price,
+                description:req.body.description,
+                special_notes:req.body.special_notes
+                }
+                item.updateOne({_id:req.body.item_id,seller_id:tokenv._id},data,function(u_err,u_result){
+                    if(u_result)
+                    {
+                        return res.json({
+                            sucess:true,
+                            message:"Your item data is sucessfully updated..."
+                        })
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            err:u_err,
+                            message:"Something went wrong"
+                        })
+                    }
+                })  
+            }
+            else if(!req.files.length && req.body.item_name && req.body.category && req.body.price && req.body.description)
+            {
+                let data = {
+                    item_name:req.body.item_name,
+                    category:req.body.category,
+                    price:req.body.price,
+                    description:req.body.description,
+                    special_notes:req.body.special_notes
+                    }
+                    item.updateOne({_id:req.body.item_id,seller_id:tokenv._id},data,function(u_err,u_result){
+                        if(u_result && u_result.nModified)
+                        {
+                            return res.json({
+                                sucess:true,
+                                message:"Your item data is sucessfully updated..."
+                            })
+                        }
+                        else if(u_result.nModified === 0)
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                message:"Please do some update on your data"
+                            }) 
+                        }
+                        else
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                err:u_err,
+                                message:"Something went wrong"
+                            })
+                        }
+                    })  
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Please fill all the fields"
+                })
+            }
+        }).catch(err=>{
+            return res.status(400).json({
+                error:true,
+                err:err,
+                message:"Something went wrong"
+            })
+        })
+    }
+    else if(req.body.operation === 'delete')
+    {
+        jwtr.verify(token,'creation').then(tokenv=>{
+            if(req.body.item_id)
+            {
+                item.deleteOne({_id:req.body.item_id,seller_id:tokenv._id},function(d_err,d_result){
+                    if(d_result && d_result.n)
+                    {
+                        favorite.deleteOne({item_id:req.body.item_id},function(f_err,f_result){
+                            if(f_result && f_result.n)
+                            {
+                                return res.json({
+                                    sucess:true,
+                                    message:"Your item is sucessfully deleted"
+                                })   
+                            }
+                            else
+                            {
+                                return res.status.json({
+                                    error:true,
+                                    err:f_err,
+                                    message:"Error while deleting from favorites"
+                                })
+                            }
+                        });
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            err:d_err,
+                            message:"Error while deleting the item "
+
+                        })
+                    }
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Please provide all the information"
+                })
+            }
+        }).catch(err=>{
+            return res.status(200).json({
+                error:true,
+                err:err,
+                message:"Something went wrong"
+            })  
+        })
+    }
+    else
+    {
+        return res.status(400).json({
+            error:true,
+            message:"Please specify the operation you perform"
+        })
+    }
+
 })
 
 
