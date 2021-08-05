@@ -7,6 +7,7 @@ var seller = require('./seller_schema');
 var item = require('./item_schema');
 var blogs = require('./blogs_schema');
 var favorite = require('./fav_schema');
+var addToCart = require('./addToCart_schema');
 
 var bodyParser = require("body-parser");
 app.use(bodyParser.json());
@@ -1381,6 +1382,167 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
 
 })
 
+//adding item to add_to_cart
+app.post('/addToCart',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        if(req.body.item_id && req.body.quantity)
+        {    
+            let data = {
+                item_id:req.body.item_id,
+                quantity:req.body.quantity,
+                special_i:req.body.special_instruction,
+                user_id:tokenv._id
+            };
+            addToCart.findOne({user_id:tokenv._id,item_id:req.body.item_id},function(err,result){
+                if(result)
+                {
+                    return res.status(400).json({
+                        error:true,
+                        message:"Item already in cart"
+                    })
+                }
+                else if(err)
+                {
+                    return res.status.length(400).json({
+                        error:true,
+                        err:err,
+                        message:"something went wrong"
+                    })
+                }
+                else
+                {
+                    addToCart.create(data,function(a_err,a_result){
+                        if(a_result)
+                        {
+                            return res.json({
+                                sucess:true,
+                                message:"Added sucessfully"
+                            })
+                        }
+                        else
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                err:a_err,
+                                message:"Error while adding to Add to cart"
+                            })
+                        }
+                    })
+                }
+            })
+            
+        }
+        else
+        {
+            return res.status(400).json({
+                error:true,
+                message:"Please provide all the required fields"
+            })
+        }
+    }).catch(t_err=>{
+        return res.status(400).json({
+            error:true,
+            err:t_err,
+            message:"Something went wrong"
+        })
+    });
+})
+
+//viewing item in cart
+app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        user.findOne({_id:tokenv._id},function(err,result){
+            if(result)
+            {
+                addToCart.aggregate([
+                    {
+                        $lookup:{
+                            from:"items",
+                            let:{itemid:"$item_id"},
+                            pipeline:[
+                                {
+                                    $match:{
+                                        $expr:{
+                                            $and:[
+                                                {$eq:["$$itemid","$_id"]}
+                                            ]
+                                        }
+                                    }
+                                },
+                                
+                            ],
+                            as: "item"
+                        }
+                    },
+                    {
+                        $unwind:"$item"
+                    },
+                    {
+                        $project:{
+                            item_id:"$item._id",
+                            i_image:"$item.i_image",
+                            i_name:"$item.item_name",
+                            price:"$item.price",
+                            quantity:1,
+                            special_i:1
+                        }
+                    }
+                    
+                ],function(err1,result1){
+                    if(result1) 
+                    {
+                        return res.json({
+                            sucess:true,
+                            message:result1,
+                            latitude:result.lat,
+                            longitude:result.long
+                        })
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            err:err1,
+                            message:"Error while fetching add_to_cart"
+                        })
+                    }
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err,
+                    message:"User not found from token"
+                })
+            }
+        })
+    });
+})
+
+app.delete('/delete_addToCart',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        addToCart.deleteOne({user_id:tokenv._id,item_id:req.body.item_id},function(err,result){
+            if(result && result.n)
+            {   
+                return res.json({
+                    sucess:true,
+                    message:"your item in cart is deleted!!"
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"error while delete in cart"
+                })
+            }
+        })  
+    })
+})
 
 //new item on the App
 app.get('/new-items', middleware.isloggedin, function (req, res) {
