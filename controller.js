@@ -1732,8 +1732,6 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
                         }
 
                     ], function (err, result) {
-                        console.log("err =>",err);
-                        console.log("result=>",result);
                         if (result && result.length) {
                             return res.json({
                                 sucess: true,
