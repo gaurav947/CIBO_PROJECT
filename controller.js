@@ -113,8 +113,7 @@ app.post("/user", function (req, res) {
             })
         })
     }
-    else if (req.headers.authorization && req.body.lat && req.body.long) {
-        if (req.body.lat && req.body.long) {
+    else if (req.headers.authorization && req.body.lat && req.body.long && req.body.delivery_address) {
             token = req.headers.authorization.split(' ')[1];
             var location = {
                 type: "Point",
@@ -123,7 +122,7 @@ app.post("/user", function (req, res) {
             var lat = parseFloat(req.body.lat);
             var long = parseFloat(req.body.long);
             jwtr.verify(token, "creation").then((tokenv) => {
-                user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: long }, function (err, result) {
+                user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: long, delivery_address:req.body.delivery_address}, function (err, result) {
                     if (result.otp === req.body.otp) {
                         return res.status(200).json({
                             status: true,
@@ -143,7 +142,6 @@ app.post("/user", function (req, res) {
                     message: "Something went wrong"
                 })
             })
-        }
     }
     else {
         if (req.body.phone_number.toString().length != 10 && req.body.phone_number) {
@@ -1429,7 +1427,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
 app.post('/addToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        if(req.body.item_id && req.body.quantity)
+        if(req.body.item_id && req.body.quantity,req.body.order_type)
         {    
             let data = {
                 item_id:req.body.item_id,
@@ -1443,7 +1441,7 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
                 {
                     return res.status(400).json({
                         error:true,
-                        message:"Item already in cart"
+                        message:"This Item already exists in your cart"
                     })
                 }
                 else if(err)
@@ -1501,6 +1499,11 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
             if(result)
             {
                 addToCart.aggregate([
+                    {
+                        $match:{
+                            user_id:mongoose.Types.ObjectId(result._id)
+                        }   
+                    },
                     {
                         $lookup:{
                             from:"items",

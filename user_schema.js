@@ -10,6 +10,7 @@ var u_schema = new mongoose.Schema({
     location:{type:{type:String},coordinates:{type:[]}},
     lat:{type:Number,default:0},
     long:{type:Number,default:0},
+    delivery_address:{type:String},
     otp:{type:Number},
     google_id:{type:String},
     facebook_id:{type:String}
