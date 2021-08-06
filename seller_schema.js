@@ -26,7 +26,7 @@ var s_schema = new mongoose.Schema({
         Bank_name:String
     },
     verified_seller:{type:Boolean},
-    Delivery_options:{type:String,enum:['delivery','pickup_only'],default:"pickup_only"},
+    Delivery_options:{type:Array,default:"delivery"},
     schedule:{
         Date:{type:Date,required:true},
         start_time:{type:String,required:true},

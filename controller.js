@@ -8,6 +8,7 @@ var item = require('./item_schema');
 var blogs = require('./blogs_schema');
 var favorite = require('./fav_schema');
 var addToCart = require('./addToCart_schema');
+var order = require('./order_schema');
 
 var bodyParser = require("body-parser");
 app.use(bodyParser.json());
@@ -535,7 +536,6 @@ app.post('/login', function (req, res) {
 
 //become a seller
 app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
-    console.log(req.body);
     token = req.headers.authorization.split(' ')[1];
     if (req.files && req.body.street_name && req.body.city && req.body.state && req.body.pin) {
         var j = 0;
@@ -725,7 +725,49 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
     }
     else if (req.body.delivery_option) {
         jwtr.verify(token, "creation").then(tokenv => {
-            seller.findOneAndUpdate({ _id: tokenv._id }, { Delivery_options: req.body.delivery_option }, { new: true, runValidators: true }, function (err, result) {
+            let option = [];
+            let j=0,k=0;
+            for(let i=0;i<req.body.delivery_option.length;i++)
+            {
+                if(req.body.delivery_option[i]==='delivery')
+                {
+                    if(j==0)
+                    {
+                        option.push(req.body.delivery_option[i]);
+                        j++;
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            message:"please don't add same data"
+                        })
+                    }
+                }
+                else if(req.body.delivery_option[i]==='pickup_only')
+                {
+                    if(k==0)
+                    {
+                        option.push(req.body.delivery_option[i]);
+                        k++;
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            message:"please don't add same data"
+                        })
+                    }
+                }
+                else
+                {
+                    return res.status(400).json({
+                        error:true,
+                        message:"Please only enter delivery OR pickup_only OR both in array"
+                    })
+                }
+            }
+            seller.findOneAndUpdate({ _id: tokenv._id }, { Delivery_options: option }, { new: true, runValidators: true }, function (err, result) {
                 if (result) {
                     return res.json({
                         sucess: true,
@@ -744,6 +786,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
         }).catch(err => {
             return res.status(400).json({
                 error: true,
+                err:err,
                 message: "Something went wrong"
             })
         })
@@ -960,7 +1003,7 @@ app.post('/favorite', middleware.isloggedin, function (req, res) {
         })
     }
 })
-
+//viewing users-favorite
 app.get('/view-favorite',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token, "creation").then(tokenv => {
@@ -1391,6 +1434,7 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
             let data = {
                 item_id:req.body.item_id,
                 quantity:req.body.quantity,
+                order_type:req.body.order_type,
                 special_i:req.body.special_instruction,
                 user_id:tokenv._id
             };
@@ -1486,7 +1530,8 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
                             i_name:"$item.item_name",
                             price:"$item.price",
                             quantity:1,
-                            special_i:1
+                            special_i:1,
+                            order_type:1
                         }
                     }
                     
@@ -1521,7 +1566,7 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
         })
     });
 })
-
+//deleting items in addToCart
 app.delete('/delete_addToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
@@ -1543,122 +1588,188 @@ app.delete('/delete_addToCart',middleware.isloggedin,function(req,res){
         })  
     })
 })
+//addToCart to orders
+app.post('/add_to_order',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        if(req.body.item_id && req.body.delivery_time && req.body.total_price && req.body.payment_method
+            && req.body.quantity && req.body.order_type)
+        {
+            var o = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+            let data = {
+                item_id:req.body.item_id,
+                delivery_time:req.body.delivery_time,
+                pay_price: req.body.total_price,
+                order_number:o,
+                payment_method:req.body.payment_method,
+                quantity:req.body.quantity,
+                user_id:tokenv._id,
+                delivery_address:req.body.delivery_address,
+                order_type:req.body.order_type
+            }
+            order.create(data,function(err,result){
+                if(result)
+                {
+                    return res.json({
+                        sucess:true,
+                        message:"Your order is sucessfully placed -> Now you can track your order"
+                    })
+                }
+                else
+                {
+                    return res.status(400).json({
+                        error:true,
+                        err:err,
+                        message:"Error while placing order"
+                    })
+                }
+            })
+        }
+        else
+        {
+            return res.status(400).json({
+                error:true,
+                message:"Please give all the information"
+            })
+        }
+    })
+})
 
 //new item on the App
 app.get('/new-items', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token, "creation").then(tokenv => {
-        user.findOne({ _id: tokenv._id }, function (err, result) {
-            if (result) {
-                item.aggregate([
-                    {
-                        $sort: { "date": -1 }
-                    },
-                    {
-                        $lookup: {
-                            from: "users",
-                            let: { seller_id: "$seller_id",active:"$i_active"},
-                            pipeline: [
-                                {
-                                    $geoNear: {
-                                        near: { type: "point", coordinates: [result.long, result.lat] },
-                                        distanceField: "dist.calculated",
-                                        maxDistance: 5 * 1000,
-                                        distanceMultiplier: 1 / 1000,
-                                        spherical: true
-                                    }
-                                },
-                                {
-                                    $match: {
-                                        $expr: {
-                                            $and: [
-                                                {$eq:["$$active","true"]},
-                                                { $eq: ["$$seller_id", "$_id"] },
-                                                {
-                                                    $ne: ["$$seller_id", mongoose.Types.ObjectId(tokenv._id)]
-                                                }
-                                            ]
+    if(req.body.option === 'delivery' || req.body.option === 'pickup_only')
+    {
+        jwtr.verify(token, "creation").then(tokenv => {
+            user.findOne({ _id: tokenv._id }, function (err, result) {
+                if (result) {
+                    item.aggregate([
+                        {
+                            $sort: { "date": -1 }
+                        },
+                        {
+                            $lookup: {
+                                from: "users",
+                                let: { seller_id: "$seller_id",active:"$i_active"},
+                                pipeline: [
+                                    {
+                                        $geoNear: {
+                                            near: { type: "point", coordinates: [result.long, result.lat] },
+                                            distanceField: "dist.calculated",
+                                            maxDistance: 5 * 1000,
+                                            distanceMultiplier: 1 / 1000,
+                                            spherical: true
+                                        }
+                                    },
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $and: [
+                                                    {$eq:["$$active","true"]},
+                                                    { $eq: ["$$seller_id", "$_id"] },
+                                                    // {$in:[req.body.option,"$delivery"]},
+                                                    {$ne: ["$$seller_id", mongoose.Types.ObjectId(tokenv._id)]}
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $and: [
+                                                    {$in:[req.body.option,"$Delivery_options"]}
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        $project: {
+                                            "dist.calculated": 1
                                         }
                                     }
-                                },
-                                {
-                                    $project: {
-                                        "dist.calculated": 1
-                                    }
-                                }
 
-                            ],
-                            as: "seller"
-                        }
-                    },
-                    {
-                        $lookup:{
-                            from:"favorites",
-                            let:{i_id:"$_id"},
-                            pipeline:[
-                                {
-                                    $match:{
-                                        $expr:{
-                                            $and:[
-                                                {$eq:["$$i_id","$item_id"]},
-                                               {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]}
-                                            ]
+                                ],
+                                as: "seller"
+                            }
+                        },
+                        {
+                            $lookup:{
+                                from:"favorites",
+                                let:{i_id:"$_id"},
+                                pipeline:[
+                                    {
+                                        $match:{
+                                            $expr:{
+                                                $and:[
+                                                    {$eq:["$$i_id","$item_id"]},
+                                                {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]}
+                                                ]
+                                            }
                                         }
-                                    }
-                                }                        
-                            ],
-                            as:"favorites"
+                                    }                        
+                                ],
+                                as:"favorites"
+                            }
+                        },
+                        {
+                            $unwind:{
+                            path:"$favorites",
+                            preserveNullAndEmptyArrays:true
+                            }
+                        },
+                        {
+                            $unwind: "$seller"
+                        },
+                        {
+                            $project: {
+                                "i_image": 1,
+                                "item_name": 1,
+                                "category":1,
+                                "distance": "$seller.dist.calculated",
+                                "seller_id": 1,
+                                "liked":"$favorites.like_status"
+                            }
                         }
-                    },
-                    {
-                        $unwind:{
-                           path:"$favorites",
-                           preserveNullAndEmptyArrays:true
-                        }
-                    },
-                    {
-                        $unwind: "$seller"
-                    },
-                    {
-                        $project: {
-                            "i_image": 1,
-                            "item_name": 1,
-                            "category":1,
-                            "distance": "$seller.dist.calculated",
-                            "seller_id": 1,
-                            "liked":"$favorites.like_status"
-                        }
-                    }
 
-                ], function (err, result) {
-                    if (result && result.length) {
-                        return res.json({
-                            sucess: true,
-                            data: result
-                        })
-                    }
-                    if (err) {
-                        return res.status(400).json({
-                            sucess: true,
-                            data: result
-                        })
-                    }
-                    else
-                    {
-                        return res.json({
-                            sucess:true,
-                            data:"No data available..."
-                        })
-                    }
-                })
+                    ], function (err, result) {
+                        console.log("err =>",err);
+                        console.log("result=>",result);
+                        if (result && result.length) {
+                            return res.json({
+                                sucess: true,
+                                data: result
+                            })
+                        }
+                        if (err) {
+                            return res.status(400).json({
+                                sucess: true,
+                                data: result
+                            })
+                        }
+                        else
+                        {
+                            return res.json({
+                                sucess:true,
+                                data:"No data available..."
+                            })
+                        }
+                    })
 
-            }
+                }
+            })
+        }).catch(err => {
+            console.log(err);
+        });
+    }
+    else
+    {
+        return res.status(400).json({
+            error:true,
+            message:"Please give a valid option"
         })
-    }).catch(err => {
-        console.log(err);
-    });
-
+    }
 })
+
 
 //openning item
 app.get('/view_item1', middleware.isloggedin, function (req, res) {
