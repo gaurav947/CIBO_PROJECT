@@ -531,7 +531,6 @@ app.post('/login', function (req, res) {
         })
     }
 })
-
 //become a seller
 app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -829,7 +828,6 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
         })
     }
 })
-
 //forget 
 var valid = 0;
 app.post('/forget', function (req, res) {
@@ -854,7 +852,7 @@ app.post('/forget', function (req, res) {
         message: "Link send to your email"
     })
 });
-
+//default home page
 app.get('/',(req,res)=>{
  res.send('hellow')
 })
@@ -914,7 +912,6 @@ app.post('/forget-response/:email', function (req, res) {
     }
 
 })
-
 //favorites
 app.post('/favorite', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -1422,7 +1419,6 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     }
 
 })
-
 //adding item to add_to_cart
 app.post('/addToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
@@ -1490,7 +1486,6 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
         })
     });
 })
-
 //viewing item in cart
 app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
@@ -1499,6 +1494,9 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
             if(result)
             {
                 addToCart.aggregate([
+                    {
+                        $sort:{ "date": -1 }
+                    },
                     {
                         $match:{
                             user_id:mongoose.Types.ObjectId(result._id)
@@ -1545,7 +1543,8 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
                             sucess:true,
                             message:result1,
                             latitude:result.lat,
-                            longitude:result.long
+                            longitude:result.long,
+                            delivery_address:result.delivery_address
                         })
                     }
                     else
@@ -1595,49 +1594,168 @@ app.delete('/delete_addToCart',middleware.isloggedin,function(req,res){
 app.post('/add_to_order',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        if(req.body.item_id && req.body.delivery_time && req.body.total_price && req.body.payment_method
-            && req.body.quantity && req.body.order_type)
+        order.findOne({item_id:req.body.item_id,user_id:tokenv._id},function(error,response)
         {
-            var o = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
-            let data = {
-                item_id:req.body.item_id,
-                delivery_time:req.body.delivery_time,
-                pay_price: req.body.total_price,
-                order_number:o,
-                payment_method:req.body.payment_method,
-                quantity:req.body.quantity,
-                user_id:tokenv._id,
-                delivery_address:req.body.delivery_address,
-                order_type:req.body.order_type
+            if(response)
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Sorry! your this item already in your order"
+                })
             }
-            order.create(data,function(err,result){
-                if(result)
-                {
-                    return res.json({
-                        sucess:true,
-                        message:"Your order is sucessfully placed -> Now you can track your order"
-                    })
+            else if(error)
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:error,
+                    message:"Something went wrong"  
+                })
+            }
+            else if(req.body.item_id && req.body.delivery_time && req.body.total_price && req.body.payment_method
+                && req.body.quantity && req.body.order_type && req.body.item_name)
+            {
+                var o = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+                let data = {
+                    item_id:req.body.item_id,
+                    delivery_time:req.body.delivery_time,
+                    total_price: req.body.total_price,
+                    order_number:o,
+                    payment_method:req.body.payment_method,
+                    quantity:req.body.quantity,
+                    user_id:tokenv._id,
+                    delivery_address:req.body.delivery_address,
+                    order_type:req.body.order_type
                 }
-                else
-                {
-                    return res.status(400).json({
-                        error:true,
-                        err:err,
-                        message:"Error while placing order"
-                    })
-                }
-            })
-        }
-        else
-        {
-            return res.status(400).json({
-                error:true,
-                message:"Please give all the information"
-            })
-        }
-    })
+                order.create(data,function(err,result){
+                    if(result)
+                    {
+                        addToCart.deleteOne({item_id:req.body.item_id,user_id:tokenv._id},function(d_err,d_result){
+                            if(d_result && d_result.n)
+                            {
+                                return res.json({
+                                    sucess:true,
+                                    message:"Your order is sucessfully placed -> Now you can track your order"
+                                })
+                            }
+                            else
+                            {
+                                return res.status(400).json({
+                                    error:true,
+                                    err:err,
+                                    message:"Something went wrong"
+                                })
+                            }
+                        });
+                        
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            err:err,
+                            message:"Error while placing order"
+                        })
+                    }
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Please give all the information"
+                })
+            }
+        });
+       
+    });
 })
-
+//views_MY_order 
+app.get('/view_order',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        order.aggregate([
+            {
+                $sort:{"date":-1}
+            },
+            {
+                $match:{
+                    user_id:mongoose.Types.ObjectId(tokenv._id)
+                }
+            },
+            {
+                $lookup:{
+                    from:"items",
+                    let:{itemid:"$item_id"},
+                    pipeline:[
+                        {
+                            $match:{
+                                $expr:{
+                                    $and:[
+                                        {$eq:["$$itemid","$_id"]}
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            $lookup:{
+                                from:"users",
+                                let:{sellerid:"$seller_id"},
+                                pipeline:[
+                                    {
+                                        $match:{
+                                            $expr:{
+                                                $and:[
+                                                    {$eq:["$$sellerid","$_id"]}
+                                                ]
+                                            }
+                                        }   
+                                    }
+                                ],
+                                as:"seller"
+                            }
+                            
+                        },
+                        {
+                            $unwind:"$seller"
+                        }
+                    ],
+                    as:"item"
+                }
+            },
+            {
+                $unwind:"$item"
+            },
+            
+            {
+                $project:{
+                    "item Image => ":"$item.i_image",
+                    "item Name=>":"$item.item_name",
+                    "order_status":1,
+                    "date":1,
+                    "total_price":1,
+                    "order_number":1,
+                    "seller name=>":"$item.seller.name"
+                }
+            }
+        ],function(err,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    data:result
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err,
+                    message:"Error while fetching data from orders"
+                })
+            }
+        })
+    });
+})
 //new item on the App
 app.get('/new-items', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -1770,8 +1888,6 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
         })
     }
 })
-
-
 //openning item
 app.get('/view_item1', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -1877,7 +1993,6 @@ app.get('/view_item1', middleware.isloggedin, function (req, res) {
         })
     })
 })
-
 //change-password
 app.post('/change-password', middleware.isloggedin, function (req, res) {
     if ((req.body.new_password).length < 6) {
@@ -1968,8 +2083,6 @@ app.post("/logout", middleware.isloggedin, function (req, res) {
         })
     })
 })
-
-
 //server listen
 var port = process.env.PORT || 8086;
 app.listen(port, function (err,result) {

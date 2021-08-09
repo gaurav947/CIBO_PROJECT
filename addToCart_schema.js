@@ -5,6 +5,7 @@ var a_schema = new mongoose.Schema({
     quantity:{type:Number,required:true},
     special_i:{type:String},
     user_id:{type:mongoose.Types.ObjectId,ref:"users"},
-    order_type:{type:String,enum:["delivery","pickup_only"],default:"delivery"}
+    order_type:{type:String,enum:["delivery","pickup_only"],default:"delivery"},
+    date:{type:Date,default:Date.now}
 })
 module.exports = mongoose.model('addToCart',a_schema);
