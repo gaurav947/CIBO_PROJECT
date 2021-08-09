@@ -1757,9 +1757,10 @@ app.get('/view_order',middleware.isloggedin,function(req,res){
     });
 })
 //new item on the App
-app.get('/new-items', middleware.isloggedin, function (req, res) {
+app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-    if(req.body.option === 'delivery' || req.body.option === 'pickup_only')
+
+    if(req.params.option === 'delivery' || req.params.option === 'pickup_only')
     {
         jwtr.verify(token, "creation").then(tokenv => {
             user.findOne({ _id: tokenv._id }, function (err, result) {
@@ -1788,7 +1789,7 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
                                                 $and: [
                                                     {$eq:["$$active","true"]},
                                                     { $eq: ["$$seller_id", "$_id"] },
-                                                    // {$in:[req.body.option,"$delivery"]},
+                                                    
                                                     {$ne: ["$$seller_id", mongoose.Types.ObjectId(tokenv._id)]}
                                                 ]
                                             }
@@ -1798,7 +1799,7 @@ app.get('/new-items', middleware.isloggedin, function (req, res) {
                                         $match: {
                                             $expr: {
                                                 $and: [
-                                                    {$in:[req.body.option,"$Delivery_options"]}
+                                                    {$in:[req.params.option,"$Delivery_options"]}
                                                 ]
                                             }
                                         }
