@@ -1422,49 +1422,93 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
 //adding item to add_to_cart
 app.post('/addToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
-        if(req.body.item_id && req.body.quantity,req.body.order_type)
-        {    
+    jwtr.verify(token,"creation").then(tokenv=>{
+        if(req.body.item_id && req.body.quantity && req.body.order_type && req.body.seller_id)
+        {
             let data = {
                 item_id:req.body.item_id,
                 quantity:req.body.quantity,
                 order_type:req.body.order_type,
-                special_i:req.body.special_instruction,
-                user_id:tokenv._id
-            };
-            addToCart.findOne({user_id:tokenv._id,item_id:req.body.item_id},function(err,result){
-                if(result)
+                user_id:tokenv._id,
+                seller_id:req.body.seller_id
+            }
+            if(req.body.special_instruction)
+            {
+                data.special_i = req.body.special_instruction
+            }
+            addToCart.findOne({user_id:tokenv._id,item_id:req.body.item_id},function(a_err,a_result){
+                if(a_result)
                 {
                     return res.status(400).json({
                         error:true,
-                        message:"This Item already exists in your cart"
+                        message:"Your selected item already present in your cart "
                     })
                 }
-                else if(err)
+                else if(a_err)
                 {
-                    return res.status.length(400).json({
+                    return res.status(400).json({
                         error:true,
-                        err:err,
-                        message:"something went wrong"
+                        err:a_err,
+                        message:"Your selected item already present in your cart "
                     })
-                }
+                }  
                 else
                 {
-                    addToCart.create(data,function(a_err,a_result){
-                        if(a_result)
+                    addToCart.findOne({user_id:tokenv._id},function(a1_err,a2_result){
+                        if(a2_result)
                         {
-                            return res.json({
-                                sucess:true,
-                                message:"Added sucessfully"
+                            if(a2_result.seller_id == req.body.seller_id)
+                            {
+                                addToCart.create(data,function(a2_err,a2_result){
+                                    if(a2_result)
+                                    {
+                                        return res.json({
+                                            sucess:true,
+                                            message:"Your item added in your cart"
+                                        })
+                                    }
+                                    else
+                                    {
+                                        return res.status(400).json({
+                                            error:true,
+                                            message:"error entered"
+                                        })
+                                    }
+                                });   
+                            }
+                            else
+                            {
+                                return res.status(400).json({
+                                    error:true,
+                                    message:"Please add item from one seller"
+                                })
+                            }
+                        }
+                        else if(a1_err)
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                message:"Something went wrong"
                             })
                         }
                         else
                         {
-                            return res.status(400).json({
-                                error:true,
-                                err:a_err,
-                                message:"Error while adding to Add to cart"
-                            })
+                            addToCart.create(data,function(a2_err,a2_result){
+                                if(a2_result)
+                                {
+                                    return res.json({
+                                        sucess:true,
+                                        message:"Your item added in your cart"
+                                    })
+                                }
+                                else
+                                {
+                                    return res.status(400).json({
+                                        error:true,
+                                        message:"error entered"
+                                    })
+                                }
+                            });
                         }
                     })
                 }
@@ -1475,16 +1519,10 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
         {
             return res.status(400).json({
                 error:true,
-                message:"Please provide all the required fields"
+                message:"Please give all the required fields..."
             })
         }
-    }).catch(t_err=>{
-        return res.status(400).json({
-            error:true,
-            err:t_err,
-            message:"Something went wrong"
-        })
-    });
+    })
 })
 //viewing item in cart
 app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
@@ -1890,7 +1928,7 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
     }
 })
 //openning item
-app.get('/view_item1', middleware.isloggedin, function (req, res) {
+app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token, "creation").then(tokenv => {
         user.findOne({ _id: tokenv._id }, function (err, result) {
@@ -1898,7 +1936,7 @@ app.get('/view_item1', middleware.isloggedin, function (req, res) {
                 item.aggregate([
                     {
                         $match:{
-                            "_id":mongoose.Types.ObjectId(req.body.item_id)
+                            "_id":mongoose.Types.ObjectId(req.params.item_id)
                         }
                     },
                     {
@@ -1909,7 +1947,7 @@ app.get('/view_item1', middleware.isloggedin, function (req, res) {
                                     $match:{
                                         $expr:{
                                             $and:[
-                                                {$eq:["$item_id",mongoose.Types.ObjectId(req.body.item_id)]},
+                                                {$eq:["$item_id",mongoose.Types.ObjectId(req.params.item_id)]},
                                                {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]}
                                             ]
                                         }
@@ -1964,7 +2002,8 @@ app.get('/view_item1', middleware.isloggedin, function (req, res) {
                             "seller_name":"$seller.name",
                             "distance":"$seller.dist.calculated",
                             "description":1,
-                            "liked":"$favorites.like_status"
+                            "liked":"$favorites.like_status",
+                            "seller id":"$seller._id"
 
                         }
                     }
