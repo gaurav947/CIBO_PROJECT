@@ -1908,7 +1908,8 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
                         {
                             return res.json({
                                 sucess:true,
-                                data:"No data available..."
+                                message:"no data available",
+                                data:result
                             })
                         }
                     })
