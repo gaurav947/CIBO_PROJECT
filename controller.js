@@ -113,16 +113,16 @@ app.post("/user", function (req, res) {
             })
         })
     }
-    else if (req.headers.authorization && req.body.lat && req.body.long && req.body.delivery_address) {
+    else if (req.headers.authorization && req.body.lat && req.body.lng && req.body.delivery_address) {
             token = req.headers.authorization.split(' ')[1];
             var location = {
                 type: "Point",
-                coordinates: [parseFloat(req.body.long), parseFloat(req.body.lat)]
+                coordinates: [parseFloat(req.body.lng), parseFloat(req.body.lat)]
             }
             var lat = parseFloat(req.body.lat);
-            var long = parseFloat(req.body.long);
+            var long = parseFloat(req.body.lng);
             jwtr.verify(token, "creation").then((tokenv) => {
-                user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: long, delivery_address:req.body.delivery_address}, function (err, result) {
+                user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: lng, delivery_address:req.body.delivery_address}, function (err, result) {
                     if (result.otp === req.body.otp) {
                         return res.status(200).json({
                             status: true,
@@ -1425,17 +1425,7 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
     jwtr.verify(token,"creation").then(tokenv=>{
         if(req.body.item_id && req.body.quantity && req.body.order_type && req.body.seller_id)
         {
-            let data = {
-                item_id:req.body.item_id,
-                quantity:req.body.quantity,
-                order_type:req.body.order_type,
-                user_id:tokenv._id,
-                seller_id:req.body.seller_id
-            }
-            if(req.body.special_instruction)
-            {
-                data.special_i = req.body.special_instruction
-            }
+            
             addToCart.findOne({user_id:tokenv._id,item_id:req.body.item_id},function(a_err,a_result){
                 if(a_result)
                 {
@@ -1454,66 +1444,94 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
                 }  
                 else
                 {
-                    addToCart.findOne({user_id:tokenv._id},function(a1_err,a2_result){
-                        if(a2_result)
-                        {
-                            if(a2_result.seller_id == req.body.seller_id)
+                    item.findOne({_id:req.body.item_id},function(i_err,i_result){
+                        if(i_result)
+                        { 
+                            var cal_price = i_result.price * req.body.quantity
+                            let data = {
+                                item_id:req.body.item_id,
+                                quantity:req.body.quantity,
+                                order_type:req.body.order_type,
+                                user_id:tokenv._id,
+                                price:cal_price,
+                                item_image:i_result.i_image,
+                                item_name:i_result.item_name,
+                                seller_id:req.body.seller_id
+                            }
+                            if(req.body.special_instruction)
                             {
-                                addToCart.create(data,function(a2_err,a2_result){
-                                    if(a2_result)
+                                data.special_i = req.body.special_instruction
+                            }
+                            addToCart.findOne({user_id:tokenv._id},function(a1_err,a2_result){
+                                if(a2_result)
+                                {
+                                    if(a2_result.seller_id == req.body.seller_id)
                                     {
-                                        return res.json({
-                                            sucess:true,
-                                            message:"Your item added in your cart"
-                                        })
+                                        addToCart.create(data,function(a2_err,a2_result){
+                                            if(a2_result)
+                                            {
+                                                return res.json({
+                                                    sucess:true,
+                                                    message:"Your item added in your cart"
+                                                })
+                                            }
+                                            else
+                                            {
+                                                return res.status(400).json({
+                                                    error:true,
+                                                    message:"error entered"
+                                                })
+                                            }
+                                        });   
                                     }
                                     else
                                     {
                                         return res.status(400).json({
                                             error:true,
-                                            message:"error entered"
+                                            message:"Please add item from one seller"
                                         })
                                     }
-                                });   
-                            }
-                            else
-                            {
-                                return res.status(400).json({
-                                    error:true,
-                                    message:"Please add item from one seller"
-                                })
-                            }
-                        }
-                        else if(a1_err)
-                        {
-                            return res.status(400).json({
-                                error:true,
-                                message:"Something went wrong"
-                            })
-                        }
-                        else
-                        {
-                            addToCart.create(data,function(a2_err,a2_result){
-                                if(a2_result)
+                                }
+                                else if(a1_err)
                                 {
-                                    return res.json({
-                                        sucess:true,
-                                        message:"Your item added in your cart"
+                                    return res.status(400).json({
+                                        error:true,
+                                        message:"Something went wrong"
                                     })
                                 }
                                 else
                                 {
-                                    return res.status(400).json({
-                                        error:true,
-                                        message:"error entered"
-                                    })
+                                    addToCart.create(data,function(a2_err,a2_result){
+                                        if(a2_result)
+                                        {
+                                            return res.json({
+                                                sucess:true,
+                                                message:"Your item added in your cart"
+                                            })
+                                        }
+                                        else
+                                        {
+                                            return res.status(400).json({
+                                                error:true,
+                                                err:a2_err,
+                                                message:"error entered"
+                                            })
+                                        }
+                                    });
                                 }
-                            });
+                            })
                         }
-                    })
+                        else
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                err:i_err,
+                                message:"Your item_id not found"
+                            })
+                        }
+                    });
                 }
             })
-            
         }
         else
         {
@@ -1567,7 +1585,7 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
                             item_id:"$item._id",
                             i_image:"$item.i_image",
                             i_name:"$item.item_name",
-                            price:"$item.price",
+                            price:1,
                             quantity:1,
                             special_i:1,
                             order_type:1
@@ -1632,66 +1650,79 @@ app.delete('/delete_addToCart',middleware.isloggedin,function(req,res){
 app.post('/add_to_order',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        order.findOne({item_id:req.body.item_id,user_id:tokenv._id},function(error,response)
-        {
-            if(response)
+        user.findOne({_id:tokenv._id},function(err,result){
+            if(result)
             {
-                return res.status(400).json({
-                    error:true,
-                    message:"Sorry! your this item already in your order"
-                })
-            }
-            else if(error)
-            {
-                return res.status(400).json({
-                    error:true,
-                    err:error,
-                    message:"Something went wrong"  
-                })
-            }
-            else if(req.body.item_id && req.body.delivery_time && req.body.total_price && req.body.payment_method
-                && req.body.quantity && req.body.order_type && req.body.item_name)
-            {
-                var o = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
-                let data = {
-                    item_id:req.body.item_id,
-                    delivery_time:req.body.delivery_time,
-                    total_price: req.body.total_price,
-                    order_number:o,
-                    payment_method:req.body.payment_method,
-                    quantity:req.body.quantity,
-                    user_id:tokenv._id,
-                    delivery_address:req.body.delivery_address,
-                    order_type:req.body.order_type
-                }
-                order.create(data,function(err,result){
-                    if(result)
-                    {
-                        addToCart.deleteOne({item_id:req.body.item_id,user_id:tokenv._id},function(d_err,d_result){
-                            if(d_result && d_result.n)
+                addToCart.find({user_id:tokenv._id},function(err1,result1){
+                    if(result1 && result1.length)
+                    {   
+                        var collector = [];
+                        var collect1 = {};
+                        for(let i=0;i<result1.length;i++)
+                        {
+                            collect1.item_id = mongoose.Types.ObjectId(result1[i].item_id);
+                            collect1.quantity = result1[i].quantity;
+                            collect1.item_image = result1[i].item_image;
+                            collect1.item_name = result1[i].item_name;
+                            collect1.price = result1[i].price
+                            collector.push(collect1);
+                            collect1 = {};
+                        }
+                        var o = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+                        let data = {
+                            all_item:collector,
+                            user_id:tokenv._id,
+                            delivery_time:req.body.delivery_time,
+                            delivery_address:result.delivery_address,
+                            order_type:result1[0].order_type,
+                            seller_id:result1[0].seller_id,
+                            payment_method:req.body.payment_method,
+                            order_number:o
+                        }
+                        order.create(data,function(o_err,o_result){
+                            if(o_result)
                             {
-                                return res.json({
-                                    sucess:true,
-                                    message:"Your order is sucessfully placed -> Now you can track your order"
+                                addToCart.deleteMany({user_id:tokenv._id},function(d_err,d_result){
+                                    if(d_result)
+                                    {
+                                        return res.json({
+                                            sucess:true,
+                                            message:"Your order has been placed!!..please wait for order_status change by seller"
+                                        })
+                                    }
+                                    else
+                                    {
+                                        return res.status(400).json({
+                                            sucess:true,
+                                            err:d_err,
+                                            message:"Error while placing order0"
+                                        })
+                                    }
                                 })
+                                
                             }
                             else
                             {
                                 return res.status(400).json({
                                     error:true,
-                                    err:err,
-                                    message:"Something went wrong"
+                                    err:o_err,
+                                    message:"Eror while placing orders1"
                                 })
                             }
-                        });
-                        
+                        })
+                    }
+                    else if(err1){
+                        return res.status(400).json({
+                            error:true,
+                            err:err1,
+                            message:"Something went wrong"  
+                        })
                     }
                     else
                     {
                         return res.status(400).json({
                             error:true,
-                            err:err,
-                            message:"Error while placing order"
+                            message:"No data found in your Cart"
                         })
                     }
                 })
@@ -1700,15 +1731,15 @@ app.post('/add_to_order',middleware.isloggedin,function(req,res){
             {
                 return res.status(400).json({
                     error:true,
-                    message:"Please give all the information"
+                    err:err,
+                    message:"User not found!!.."
                 })
             }
         });
-       
     });
 })
 //views_MY_order 
-app.get('/view_order',middleware.isloggedin,function(req,res){
+app.get('/My_order',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
         order.aggregate([
@@ -1720,10 +1751,11 @@ app.get('/view_order',middleware.isloggedin,function(req,res){
                     user_id:mongoose.Types.ObjectId(tokenv._id)
                 }
             },
+            { $addFields: { firstitem: { $first: "$all_item" } } },
             {
                 $lookup:{
                     from:"items",
-                    let:{itemid:"$item_id"},
+                    let: { itemid:"$firstitem.item_id"},
                     pipeline:[
                         {
                             $match:{
@@ -1763,27 +1795,29 @@ app.get('/view_order',middleware.isloggedin,function(req,res){
             {
                 $unwind:"$item"
             },
+
             
             {
                 $project:{
-                    "item Image => ":"$item.i_image",
-                    "item Name=>":"$item.item_name",
+                    "item_Image":"$item.i_image",
+                    "item_Name":"$item.item_name",
                     "order_status":1,
                     "date":1,
                     "total_price":1,
-                    "order_number":1,
-                    "seller name=>":"$item.seller.name"
+                    "order_number":1,   
+                    "orderAmount":{$sum:"$all_item.price"},
+                    "seller_name":"$item.seller.name"
                 }
             }
         ],function(err,result){
-            if(result)
+            if(result && result.length)
             {
                 return res.json({
                     sucess:true,
                     data:result
                 })
             }
-            else
+            else if(err)
             {
                 return res.status(400).json({
                     error:true,
@@ -1791,8 +1825,48 @@ app.get('/view_order',middleware.isloggedin,function(req,res){
                     message:"Error while fetching data from orders"
                 })
             }
+            else
+            {
+                return res.status(200).json({
+                    sucess:true,
+                    message:"No data found"
+                })
+            }
         })
     });
+})
+
+app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        order.findOne({user_id:tokenv._id,_id:req.params.order_id},async function(err,result){
+            if(result)
+            {
+                let sum=0;
+                for(let i=0;i<result.all_item.length;i++)
+                    sum = sum+result.all_item[i].price;
+                return res.json({
+                    sucess:true,
+                    data:result,
+                    totalPay:sum,
+                    message:"Data fetch sucessfully!!"
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Something went wrong"
+                })
+            }
+        })
+    }).catch(err=>{
+        return res.status(400).json({
+            error:true,
+            err:err,
+            message:"Something went wrong"
+        })
+    })
 })
 //new item on the App
 app.get('/new-items/:option', middleware.isloggedin, function (req, res) {

@@ -3,6 +3,9 @@ var db = require('./db_init');
 var a_schema = new mongoose.Schema({
     item_id:{type:mongoose.Types.ObjectId,ref:"items",required:true},
     quantity:{type:Number,required:true},
+    item_image:String,
+    item_name:String,
+    price:Number,
     special_i:{type:String},
     user_id:{type:mongoose.Types.ObjectId,ref:"users"},
     order_type:{type:String,enum:["delivery","pickup_only"],default:"delivery"},
