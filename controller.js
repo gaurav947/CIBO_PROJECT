@@ -1036,7 +1036,7 @@ app.get('/view-favorite',middleware.isloggedin,function(req,res){
                                     $geoNear:{
                                             near: { type: "point", coordinates: [result.long, result.lat] },
                                             distanceField: "dist.calculated",
-                                            maxDistance: 5 * 1000,
+                                            maxDistance: 500 * 1000,
                                             distanceMultiplier: 1 / 1000,
                                             spherical: true
                                     }
