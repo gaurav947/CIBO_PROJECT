@@ -122,7 +122,7 @@ app.post("/user", function (req, res) {
             var lat = parseFloat(req.body.lat);
             var long = parseFloat(req.body.lng);
             jwtr.verify(token, "creation").then((tokenv) => {
-                user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: lng, delivery_address:req.body.delivery_address}, function (err, result) {
+                user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: long, delivery_address:req.body.delivery_address}, function (err, result) {
                     if (result.otp === req.body.otp) {
                         return res.status(200).json({
                             status: true,
@@ -2243,7 +2243,7 @@ app.post('/show_order_status',middleware.isloggedin,function(req,res){
                                     {
                                         return res.json({
                                             sucess:true,
-                                            message:"Order accepted sucessfully.. be ready for submit the order"
+                                            message:"order submitted sucessfully"
                                         })
                                     }
                                     else
