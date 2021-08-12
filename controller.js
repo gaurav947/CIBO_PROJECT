@@ -1595,9 +1595,13 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
                 ],function(err1,result1){
                     if(result1) 
                     {
+                        var sum=0;
+                        for(let i=0;i<result1.length;i++)
+                             sum = sum+result1[i].price;
                         return res.json({
                             sucess:true,
                             message:result1,
+                            total_pay:sum,
                             latitude:result.lat,
                             longitude:result.long,
                             delivery_address:result.delivery_address
