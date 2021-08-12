@@ -1840,27 +1840,65 @@ app.get('/My_order',middleware.isloggedin,function(req,res){
 app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        order.findOne({user_id:tokenv._id,_id:req.params.order_id},async function(err,result){
+        order.aggregate([
+            {
+                $match:{
+                    $expr:{
+                        $and:[
+                            {$eq:["$_id",mongoose.Types.ObjectId(req.params.order_id)]},
+                            {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]}
+                        ]
+                    }
+                },
+               
+            },
+            {
+                $project:{
+                    all_item:1,
+                    order_number:1,
+                    delivery_address:1,
+                    payment_method:1,
+                    "Total Pay":{$sum:"$all_item.price"}
+                }
+            }
+        ],function(err,result){
             if(result)
             {
-                let sum=0;
-                for(let i=0;i<result.all_item.length;i++)
-                    sum = sum+result.all_item[i].price;
                 return res.json({
                     sucess:true,
                     data:result,
-                    totalPay:sum,
-                    message:"Data fetch sucessfully!!"
+                    message:"Data fetched sucessfully!...."
                 })
             }
             else
             {
                 return res.status(400).json({
                     error:true,
-                    message:"Something went wrong"
+                    message:"Error while fetching data"
                 })
             }
         })
+        // order.findOne({user_id:tokenv._id,_id:req.params.order_id},async function(err,result){
+        //     if(result)
+        //     {
+        //         let sum=0;
+        //         for(let i=0;i<result.all_item.length;i++)
+        //             sum = sum+result.all_item[i].price;
+        //         return res.json({
+        //             sucess:true,
+        //             data:result,
+        //             totalPay:sum,
+        //             message:"Data fetch sucessfully!!"
+        //         })
+        //     }
+        //     else
+        //     {
+        //         return res.status(400).json({
+        //             error:true,
+        //             message:"Something went wrong"
+        //         })
+        //     }
+        // })
     }).catch(err=>{
         return res.status(400).json({
             error:true,
@@ -2048,7 +2086,7 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                                     $geoNear:{
                                             near: { type: "point", coordinates: [result.long, result.lat] },
                                             distanceField: "dist.calculated",
-                                            maxDistance: 5 * 1000,
+                                            maxDistance: 500 * 1000,
                                             distanceMultiplier: 1 / 1000,
                                             spherical: true
                                     }
