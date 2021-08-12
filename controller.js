@@ -209,7 +209,7 @@ app.post("/user", function (req, res) {
 })
 //for updating user detail
 app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res) {
-    if (/^[a-zA-Z0-9]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
+    if (/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
         return res.status(400).json({
             error: true,
             message: "Please check your mail is not in format"
@@ -1664,7 +1664,8 @@ app.post('/add_to_order',middleware.isloggedin,function(req,res){
                             collect1.quantity = result1[i].quantity;
                             collect1.item_image = result1[i].item_image;
                             collect1.item_name = result1[i].item_name;
-                            collect1.price = result1[i].price
+                            collect1.special_i = result1[i].special_i;
+                            collect1.price = result1[i].price;
                             collector.push(collect1);
                             collect1 = {};
                         }
@@ -1835,7 +1836,7 @@ app.get('/My_order',middleware.isloggedin,function(req,res){
         })
     });
 })
-
+//view particular order
 app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
@@ -2105,6 +2106,191 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
         return res.status(400).json({
             error:true,
             message:"Something went wrong"
+        })
+    })
+})
+//show order list to seller 
+app.get('/show_orders_list_to_seller',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{ 
+        seller.findOne({_id:tokenv._id},function(err,result){
+            if(result && result.verified_seller)
+            {
+                order.aggregate([
+                    {
+                        $sort:{"date":-1}
+                    },
+                    {
+                        $match:{
+                            $expr:{
+                                $and:[
+                                    {$eq:["$seller_id",mongoose.Types.ObjectId(tokenv._id)]},
+                                    {$ne:["$order_status","cancel"]}
+                                ]
+                            }
+                            
+                        }
+                    },
+                    {
+                        $project:{
+                            all_item:1,
+                            order_type:1,
+                            seller_status:1
+                        }
+                    }
+                ],function(err1,result1){
+                    if(result1)
+                    {
+                        return res.json({
+                            sucess:true,
+                            data:result1,
+                            message:"Data fetched sucessfully...."
+                        })
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            message:"Error while fetching data"
+                        })
+                    }
+                })
+            }
+            else if(err)
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err,
+                    message:"user not found"
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"May be you are not a seller"
+                })
+            }
+        })
+    })
+})
+//status changing of order_list
+app.post('/show_order_status',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        seller.findOne({_id:tokenv._id},function(err,result){
+            if(result && result.verified_seller)
+            {
+                order.findOne({seller_id:tokenv._id,_id:req.body.order_id},function(err1,result1){
+                    if(result1)
+                    {
+                        if(result1.seller_status==="request")
+                        {
+                            if(req.body.status ==='accept')
+                            {
+                                order.updateOne({_id:req.body.order_id},{seller_status:"pending",order_status:"track"},function(err2,result2){
+                                    if(result2 && result2.nModified)
+                                    {
+                                        return res.json({
+                                            sucess:true,
+                                            message:"Order accepted sucessfully.. be ready for submit the order"
+                                        })
+                                    }
+                                    else
+                                    {
+                                        return res.status(400).json({
+                                            error:true,
+                                            err:err2,
+                                            message:"Something went wrong"
+                                        })
+                                    }
+                                })
+                            }
+                            else if(req.body.status ==='reject')
+                            {
+                                order.updateOne({_id:req.body.order_id},{seller_status:"reject",order_status:"cancel"},function(err2,result2){
+                                    if(result2 && result2.nModified)
+                                    {
+                                        return res.json({
+                                            sucess:true,
+                                            message:"Order rejected by you sucessfully"
+                                        })
+                                    }
+                                    else
+                                    {
+                                        return res.status(400).json({
+                                            error:true,
+                                            err:err2,
+                                            message:"Something went wrong"
+                                        })
+                                    }
+                                })
+                            }
+                            else
+                            {
+                                return res.status(400).json({
+                                    error:true,
+                                    message:"Please choose correct status"
+                                })
+                            }
+                        }
+                        else if(result1.seller_status==="pending")
+                        {
+                            if(req.body.status === "submit")
+                            {
+                                order.updateOne({_id:req.body.order_id},{seller_status:"completed",order_status:"completed"},function(err3,result3){
+                                    if(result3 && result3.nModified)
+                                    {
+                                        return res.json({
+                                            sucess:true,
+                                            message:"Order accepted sucessfully.. be ready for submit the order"
+                                        })
+                                    }
+                                    else
+                                    {
+                                        return res.status(400).json({
+                                            error:true,
+                                            err:err3,
+                                            message:"Something went wrong"
+                                        })
+                                    }
+                                })
+                            }
+                            else
+                            {
+                                return res.status(400).json({
+                                    error:true,
+                                    message:"Provide correct status"
+                                })
+                            }
+                            
+                        }
+                        else
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                message:"Something went wrong"
+                            })
+                        }
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            err:err1,
+                            message:"Something went wrong"
+                        })
+                    }  
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err,
+                    message:"Something went wrong"
+                })
+            }
         })
     })
 })

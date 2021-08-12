@@ -5,7 +5,8 @@ var allitem_schema = new mongoose.Schema({
     quantity:{type:String},
     price:{type:Number},
     item_image:String,
-    item_name:String
+    item_name:String,
+    special_i:String,
 });
 var o_schema = new mongoose.Schema({
     all_item:[allitem_schema],
@@ -17,7 +18,8 @@ var o_schema = new mongoose.Schema({
     user_id:{type:mongoose.Types.ObjectId,ref:"users",required:true},
     seller_id:{type:mongoose.Types.ObjectId,ref:"users"},
     order_type:{type:String,enum:["delivery","pickup_only"],default:"delivery"},
-    order_status:{type:String,enum:["pending","reject","track"],default:"pending"},
+    order_status:{type:String,enum:["pending","cancel","track","completed"],default:"pending"},
+    seller_status:{type:String,enum:["request","completed","pending","reject"],default:"request"},
     date:{type:Date,default:Date.now}
 })
 module.exports =  mongoose.model('order',o_schema);
