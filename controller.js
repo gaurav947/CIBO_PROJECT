@@ -831,6 +831,12 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
 //forget 
 var valid = 0;
 app.post('/forget', function (req, res) {
+    if(/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
+        return res.status(400).json({
+            error: true,
+            message: "Please check your mail is not in format"
+        })
+    }
     var transporter = nodemailer.createTransport({
         host: "smtp.mailtrap.io",
         port: 2525,
@@ -1882,27 +1888,6 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
                 })
             }
         })
-        // order.findOne({user_id:tokenv._id,_id:req.params.order_id},async function(err,result){
-        //     if(result)
-        //     {
-        //         let sum=0;
-        //         for(let i=0;i<result.all_item.length;i++)
-        //             sum = sum+result.all_item[i].price;
-        //         return res.json({
-        //             sucess:true,
-        //             data:result,
-        //             totalPay:sum,
-        //             message:"Data fetch sucessfully!!"
-        //         })
-        //     }
-        //     else
-        //     {
-        //         return res.status(400).json({
-        //             error:true,
-        //             message:"Something went wrong"
-        //         })
-        //     }
-        // })
     }).catch(err=>{
         return res.status(400).json({
             error:true,
