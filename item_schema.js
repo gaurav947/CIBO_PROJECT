@@ -12,5 +12,9 @@ var i_schema = new mongoose.Schema({
     special_notes:{type:String,required:true},
     date:{type:Date,default:Date.now}
 });
+// i_schema.index({
+//     item_name:"text",
+//     category:"text"
+// })
 
 module.exports = mongoose.model('item',i_schema);

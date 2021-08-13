@@ -830,7 +830,7 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
 })
 //forget 
 var valid = 0;
-app.post('/forget', function (req, res) {
+app.post('/forget', function (req, res) {``
     if(/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
         return res.status(400).json({
             error: true,
@@ -1070,9 +1070,7 @@ app.get('/view-favorite',middleware.isloggedin,function(req,res){
                             "item_name":1,
                             "price":1,
                             "seller_name":"$seller.name",
-                            "distance":"$seller.dist.calculated"
-                            
-
+                            "distance":{$round:["$seller.dist.calculated",1]}
                         }
                     }
         
@@ -1635,10 +1633,10 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
     });
 })
 //deleting items in addToCart
-app.delete('/delete_addToCart',middleware.isloggedin,function(req,res){
+app.delete('/delete_addToCart/:item_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        addToCart.deleteOne({user_id:tokenv._id,item_id:req.body.item_id},function(err,result){
+        addToCart.deleteOne({user_id:tokenv._id,item_id:req.params.item_id},function(err,result){
             if(result && result.n)
             {   
                 return res.json({
@@ -1987,7 +1985,7 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
                                 "i_image": 1,
                                 "item_name": 1,
                                 "category":1,
-                                "distance": "$seller.dist.calculated",
+                                "distance":{$round:["$seller.dist.calculated",1]},
                                 "seller_id": 1,
                                 "liked":"$favorites.like_status"
                             }
@@ -2103,7 +2101,7 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                             "item_name":1,
                             "price":1,
                             "seller_name":"$seller.name",
-                            "distance":"$seller.dist.calculated",
+                            "distance":{$round:["$seller.dist.calculated",1]},
                             "description":1,
                             "liked":"$favorites.like_status",
                             "seller id":"$seller._id"
@@ -2393,6 +2391,113 @@ app.post('/change-password', middleware.isloggedin, function (req, res) {
             })
         })
     }
+})
+//search
+app.get('/search/:search',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        user.findOne({_id:tokenv._id},function(err,result){
+            if(result)
+            {    item.aggregate([
+                    {
+                        $match:{
+                            $expr:{
+                                $and:[
+                                    {$ne:["$seller_id",mongoose.Types.ObjectId(tokenv._id)]}
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        $match:{
+                                $or:[
+                                    {item_name:{$regex:req.params.search,$options:'i'}},
+                                    {category:{$regex:req.params.search,$options:'i'}},
+                                    
+                                ]
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            let: { seller_id: "$seller_id",active:"$i_active"},
+                            pipeline: [
+                                {
+                                    $geoNear: {
+                                        near: { type: "point", coordinates: [result.long, result.lat] },
+                                        distanceField: "dist.calculated",
+                                        maxDistance: 5 * 1000,
+                                        distanceMultiplier: 1 / 1000,
+                                        spherical: true
+                                    }
+                                },
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [
+                                                {$eq:["$$active","true"]},
+                                                { $eq: ["$$seller_id", "$_id"] },
+                                                
+                                                {$ne: ["$$seller_id", mongoose.Types.ObjectId(tokenv._id)]}
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    $match: {
+                                        $expr: {
+                                            $and: [
+                                                {$in:["delivery","$Delivery_options"]}
+                                            ]
+                                        }
+                                    }
+                                }
+
+                            ],
+                            as: "seller"
+                        }
+                    },
+                    {
+                        $unwind:"$seller"
+                    },
+                    {
+                        $project:{
+                            "i_image":1,
+                            "item_name":1,
+                            "price":1,
+                            "seller_name":"$seller.name",
+                            "distance":{$round:["$seller.dist.calculated",1]}
+                        }
+                    }
+                    
+                ],function(err,result){
+                    if(result){
+                        return res.json({
+                            sucess:true,
+                            data:result,
+                            message:"Data fetched successfully"
+                        })
+                    }
+                    else
+                    {
+                        return res.status(400).json({
+                            error:true,
+                            err:err,
+                            message:"Error while fetching data"
+                        })
+                    }
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"user not found"
+                })
+            }
+        })
+        
+    })
 })
 //logout
 app.post("/logout", middleware.isloggedin, function (req, res) {
