@@ -321,6 +321,10 @@ app.post('/login', function (req, res) {
                             email: result.email,
                             phone_number: result.phone_number
                         }
+                        if(result.verified_seller)
+                        {
+                            add.verified_seller = result.verified_seller
+                        }
                         jwtr.sign(add, "creation").then((c_token) => {
                             return res.json({
                                 status: true,
@@ -2499,13 +2503,14 @@ app.get('/search/:search',middleware.isloggedin,function(req,res){
         
     })
 })
+
 //logout
 app.post("/logout", middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token, 'creation').then((tokenv) => {
         jwtr.destroy(tokenv.jti).then((destroy) => {
             return res.json({
-                message: destroy,
+                message: "Logout sucessfull... token destoryed",
                 sucess: true
             })
         })

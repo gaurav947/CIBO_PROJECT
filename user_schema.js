@@ -13,7 +13,8 @@ var u_schema = new mongoose.Schema({
     delivery_address:{type:String},
     otp:{type:Number},
     google_id:{type:String},
-    facebook_id:{type:String}
+    facebook_id:{type:String},
+    verified_seller:{type:Boolean}
 })
 u_schema.index({
     location: "2dsphere"
