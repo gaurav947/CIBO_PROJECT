@@ -2005,6 +2005,7 @@ app.post('/review',middleware.isloggedin,function(req,res){
         })
     })
 })
+//getting reviews to seller
 app.get('/get-reviews',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
@@ -2140,6 +2141,142 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
         })
     })
 })
+
+//trending
+app.get('/trending/:option',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        user.findOne({_id:tokenv._id},function(err1,result1){
+            if(result1)
+            {
+                if(req.params.option === 'delivery' || req.params.option === 'pickup_only')
+                {
+                    item.aggregate([
+                        {
+                            $lookup: {
+                                from: "users",
+                                let: { seller_id: "$seller_id",active:"$i_active"},
+                                pipeline: [
+                                    {
+                                        $geoNear: {
+                                            near: { type: "point", coordinates: [result1.long, result1.lat] },
+                                            distanceField: "dist.calculated",
+                                            maxDistance: 5 * 1000,
+                                            distanceMultiplier: 1 / 1000,
+                                            spherical: true
+                                        }
+                                    },
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $and: [
+                                                    {$eq:["$$active","true"]},
+                                                    { $eq: ["$$seller_id", "$_id"] },
+                                                    
+                                                    {$ne: ["$$seller_id", mongoose.Types.ObjectId(tokenv._id)]}
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $and: [
+                                                    {$in:[req.params.option,"$Delivery_options"]}
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        $project: {
+                                            "dist.calculated": 1
+                                        }
+                                    }
+
+                                ],
+                                as: "seller"
+                            }
+                        },
+                        {
+                            $unwind:"$seller"
+                        },
+                        {
+                            $lookup:{
+                                from:"favorites",
+                                let:{id:"$_id"},
+                                pipeline:[
+                                    {
+                                        $match:{
+                                            $expr:{
+                                                $and:[
+                                                    {$eq:["$$id","$item_id"]}
+                                                ]
+                                            }
+                                        }
+                                        
+                                    },
+                                    {
+                                        $count:"like_status"
+                                    }
+                                ],
+                                as:"fav" 
+                            }
+                        },
+                        {
+                            $unwind:"$fav"
+                        },
+                        {
+                            $limit:5
+                        },
+                        {
+                            $project:{
+                                "i_image":1,
+                                "item_name":1,
+                                "count":"$fav.like_status",
+                                "distance":{$round:["$seller.dist.calculated",1]}
+                            }
+                        },
+                        {
+                            $sort:{"count":-1}
+                        }
+
+                    ],function (err, result) {
+                        if (result) {
+                            return res.json({
+                                sucess: true,
+                                data: result
+                            })
+                        }
+                        if (err) {
+                            return res.status(400).json({
+                                sucess: true,
+                                data: result
+                            })
+                        }
+                        else
+                        {
+                            return res.json({
+                                sucess:true,
+                                message:"no data available",
+                                data:result
+                            })
+                        }
+                    })
+                }
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err1,
+                    message:"Something went wrong"
+                })
+            }
+        })
+        
+    })
+})
+
 //new item on the App
 app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -2151,6 +2288,9 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
                     item.aggregate([
                         {
                             $sort: { "date": -1 }
+                        },
+                        {
+                            $limit:10
                         },
                         {
                             $lookup: {
