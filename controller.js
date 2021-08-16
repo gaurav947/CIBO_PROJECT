@@ -2508,7 +2508,7 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                             "distance":{$round:["$seller.dist.calculated",1]},
                             "description":1,
                             "liked":"$favorites.like_status",
-                            "seller id":"$seller._id"
+                            "seller_id":"$seller._id"
 
                         }
                     }
