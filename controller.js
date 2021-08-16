@@ -9,6 +9,7 @@ var blogs = require('./blogs_schema');
 var favorite = require('./fav_schema');
 var addToCart = require('./addToCart_schema');
 var order = require('./order_schema');
+var review = require('./reviews_schema');
 
 var bodyParser = require("body-parser");
 app.use(bodyParser.json());
@@ -52,7 +53,7 @@ const fileFilter = (req, file, cb) => {
     if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type, only JPEG and PNG is allowed!"), false);
+      cb(null, false);
     }
 };
 const upload = multer({fileFilter,storage: multers3({
@@ -800,8 +801,8 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
     if (req.body.date && req.body.start && req.body.end) {
         let schedule = {
             Date: req.body.date,
-            start_time: req.body.start_time,
-            end_time: req.body.end_time
+            start_time: req.body.start,
+            end_time: req.body.end
         }
         jwtr.verify(token, "creation").then(tokenv => {
             seller.findOneAndUpdate({ _id: tokenv._id }, { schedule: schedule }, function (err, result) {
@@ -832,6 +833,11 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
         })
     }
 })
+//default home page
+app.get('/',(req,res)=>{
+    res.send('hellow')
+   })
+
 //forget 
 var valid = 0;
 app.post('/forget', function (req, res) {``
@@ -862,10 +868,6 @@ app.post('/forget', function (req, res) {``
         message: "Link send to your email"
     })
 });
-//default home page
-app.get('/',(req,res)=>{
- res.send('hellow')
-})
 app.get('/forget-reset-password/:email', function (req, res) {
     res.render('reset', { email: req.params.email });
     valid = 1;
@@ -1136,6 +1138,29 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
         })
     })
 
+})
+//view-blogs
+app.get('/get-blogs',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        blogs.findOne({user_id:tokenv._id},function(error,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    data:result,
+                    message:"Your data fetched sucessfully!!.."
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Error while data"
+                })
+            }
+        })
+    })
 })
 //storing items by seller
 app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
@@ -1426,6 +1451,46 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
         })
     }
 
+})
+//List view of item by seller
+app.get('/listed-item',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        item.aggregate([
+            {
+                $match:{
+                    seller_id:mongoose.Types.ObjectId(tokenv._id)
+                }
+            },
+            {
+                $project:{
+                    item_name:1,
+                    i_image:1,
+                    category:1,
+                    price:1,
+                    i_active:1,
+                    description:1
+                }
+            }
+        ],function(err,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    data:result,
+                    message:"data fetched sucessfully"
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err,
+                    messahe:"Error while fetching data"
+                })
+            }
+        })
+    })
 })
 //adding item to add_to_cart
 app.post('/addToCart',middleware.isloggedin,function(req,res){
@@ -1808,16 +1873,41 @@ app.get('/My_order',middleware.isloggedin,function(req,res){
             {
                 $unwind:"$item"
             },
-
-            
+            {
+                $lookup:{
+                    from:"reviews",
+                    let:{orderId:"$_id"},
+                    pipeline:[
+                        {
+                            $match:{
+                                $expr:{
+                                    $and:[
+                                        {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]},
+                                        {$eq:["$$orderId","$order_id"]}
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as:"reviews"
+                }
+            },
+            {
+                $unwind:{
+                path:"$reviews",
+                preserveNullAndEmptyArrays:true
+                }
+            },
             {
                 $project:{
                     "item_Image":"$item.i_image",
                     "item_Name":"$item.item_name",
                     "order_status":1,
                     "date":1,
+                    "seller_id":1,
                     "total_price":1,
                     "order_number":1,   
+                    "reviews":"$reviews.star",
                     "orderAmount":{$sum:"$all_item.price"},
                     "seller_name":"$item.seller.name"
                 }
@@ -1848,6 +1938,130 @@ app.get('/My_order',middleware.isloggedin,function(req,res){
         })
     });
 })
+//adding reviews
+app.post('/review',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        if(req.body.order_id && req.body.seller_id && req.body.star && req.body.message)
+        {
+            review.findOne({user_id:tokenv._id,order_id:req.body.order_id},function(error,result){
+                if(result)
+                {
+                    return res.status(400).json({
+                        error:true,
+                        message:"Your review already registered!!!...."
+                    })
+                }
+                else if(error)
+                {
+                    return res.status(400).json({
+                        error:true,
+                        error:error,
+                        message:"Error in review"
+
+                    })
+                }
+                else
+                {
+                    let data = {
+                        user_id:tokenv._id,
+                        seller_id:req.body.seller_id,
+                        order_id:req.body.order_id,
+                        star:req.body.star,
+                        message:req.body.message
+                    }
+                    review.create(data,function(err1,result1){
+                        if(result1)
+                        {
+                            return res.json({
+                                success:true,
+                                message:"Your review is sucessfully registered"
+                            })
+                        }
+                        else
+                        {
+                            return res.status(400).json({
+                                error:true,
+                                err:err1,
+                                message:"Error while registering your review"
+                            })
+                        }
+                    })
+
+                }
+            })
+        }
+        else{
+            return res.status(400).json({
+                error:true,
+                message:"Please fill the fields"
+            })
+        }
+    }).catch(err=>{
+        return res.status(400).json({
+            error:true,
+            err:err,
+            message:"Something went wrong"
+        })
+    })
+})
+app.get('/get-reviews',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtr.verify(token,'creation').then(tokenv=>{
+        review.aggregate([
+            {
+                $match:{
+                    seller_id:mongoose.Types.ObjectId(tokenv._id)
+                }
+            },
+            {
+                $lookup:{
+                    from:"users",
+                    let:{userId:"$user_id"},
+                    pipeline:[
+                        {
+                            $match:{
+                                $expr:{
+                                    $and:[
+                                        {$eq:["$$userId","$_id"]}
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as:"user"
+                }
+            },
+            {
+                $unwind:"$user"
+            },
+            {
+                $project:{
+                    "user_image":"$user.image",
+                    "user_name":"$user.name",
+                    "star":1,
+                    "message":1
+                }
+            }
+        ],function(error,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    data:result
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    error:error,
+                    message:"Eror while fetching data"
+                })
+            }
+        })
+    })
+})
 //view particular order
 app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
@@ -1865,11 +2079,39 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
                
             },
             {
+                $lookup:{
+                    from:"reviews",
+                    let:{orderId:"$_id"},
+                    pipeline:[
+                        {
+                            $match:{
+                                $expr:{
+                                    $and:[
+                                        {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]},
+                                        {$eq:["$$orderId","$order_id"]}
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as:"reviews"
+                }
+            },
+            {
+                $unwind:{
+                path:"$reviews",
+                preserveNullAndEmptyArrays:true
+                }
+            },
+            {
                 $project:{
                     all_item:1,
                     order_number:1,
                     delivery_address:1,
+                    order_status:1,
                     payment_method:1,
+                    seller_id:1,
+                    "reviews":"$reviews.star",
                     "Total Pay":{$sum:"$all_item.price"}
                 }
             }
@@ -1901,7 +2143,6 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
 //new item on the App
 app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-
     if(req.params.option === 'delivery' || req.params.option === 'pickup_only')
     {
         jwtr.verify(token, "creation").then(tokenv => {
@@ -2090,7 +2331,24 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                                             ]
                                         }
                                     }
+                                },
+                                {
+                                    $lookup:{
+                                        from:"reviews",
+                                        pipeline:[
+                                            {
+                                                $match:{
+                                                    $expr:{
+                                                        $and:[
+                                                            {$eq:["$$sellerid","$seller_id"]}
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        as:"reviews"
                                     }
+                                }
                                      
                             ],
                             as:'seller'
@@ -2104,6 +2362,8 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                             "i_image":1,
                             "item_name":1,
                             "price":1,
+                            "reviews":{$avg:"$seller.reviews.star"},
+                            "reviews_length":"$seller.reviews",
                             "seller_name":"$seller.name",
                             "distance":{$round:["$seller.dist.calculated",1]},
                             "description":1,
@@ -2116,6 +2376,7 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                 ],function(error,data){
                     if(data)
                     {
+                        data[0].reviews_length = data[0].reviews_length.length
                         return res.json({
                             sucess:true,
                             result:data
@@ -2503,7 +2764,6 @@ app.get('/search/:search',middleware.isloggedin,function(req,res){
         
     })
 })
-
 //logout
 app.post("/logout", middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
