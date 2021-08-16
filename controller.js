@@ -329,6 +329,7 @@ app.post('/login', function (req, res) {
                         jwtr.sign(add, "creation").then((c_token) => {
                             return res.json({
                                 status: true,
+                                seller:add.verified_seller,
                                 token: c_token,
                                 message: "login  Sucessfully!"
                             })
