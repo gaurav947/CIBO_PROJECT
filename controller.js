@@ -857,6 +857,27 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
         })
     }
 })
+app.get('/view_schedule',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtVerify(token,'creation').then(tokenv=>{
+        seller.findOne({_id:tokenv._id},function(error,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    delivery_option:result.schedule
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"error while fetching delivery_option"
+                })
+            }
+        })
+    })
+})
 //default home page
 app.get('/',(req,res)=>{
     res.send('hellow')
