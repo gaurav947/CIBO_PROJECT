@@ -2168,7 +2168,6 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
         })
     })
 })
-
 //trending
 app.get('/trending/:option',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
@@ -2240,18 +2239,43 @@ app.get('/trending/:option',middleware.isloggedin,function(req,res){
                                                 ]
                                             }
                                         }
-                                        
                                     },
                                     {
                                         $count:"like_status"
                                     }
+                                    
                                 ],
                                 as:"fav" 
                             }
                         },
                         {
+                            $lookup:{
+                                from:"favorites",
+                                let:{id:"$_id"},
+                                pipeline:[
+                                    {
+                                        $match:{
+                                            $expr:{
+                                                $and:[
+                                                    {$eq:["$$id","$item_id"]},
+                                                    {$eq:["$user_id",mongoose.Types.ObjectId(tokenv._id)]}
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ],
+                                as:"user_fav"
+                            }
+                        },
+                        {
                             $unwind:"$fav"
                         },
+                        {
+                            $unwind:{
+                                path:"$user_fav",
+                                preserveNullAndEmptyArrays:true
+                                }
+                        },  
                         {
                             $limit:5
                         },
@@ -2260,6 +2284,7 @@ app.get('/trending/:option',middleware.isloggedin,function(req,res){
                                 "i_image":1,
                                 "item_name":1,
                                 "count":"$fav.like_status",
+                                "liked":"$user_fav.like_status",
                                 "distance":{$round:["$seller.dist.calculated",2]}
                             }
                         },
@@ -2303,7 +2328,6 @@ app.get('/trending/:option',middleware.isloggedin,function(req,res){
         
     })
 })
-
 //new item on the App
 app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
