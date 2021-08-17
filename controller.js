@@ -12,20 +12,19 @@ var order = require('./order_schema');
 var review = require('./reviews_schema');
 
 var bodyParser = require("body-parser");
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 var cors = require('cors');
 app.use(cors());
 
 mongoose.set("useFindAndModify", false);
-var redis = require('redis');
-var JWTR = require('jwt-redis').default;
-//ES6 import JWTR from 'jwt-redis';
-var redisClient = redis.createClient(process.env.REDIS_URL);
-var jwtr = new JWTR(redisClient);
 
 //otp-generator => for generating OTP
 var otpGenerator = require("otp-generator");
+const util = require('util');
+var _jwt = require('jwtr');
+const jwtVerify = util.promisify(_jwt.verify)
+const jwtSign = util.promisify(_jwt.sign)
 
 //bcrypt => for hashing
 var bcrypt = require("bcrypt");
@@ -90,7 +89,7 @@ app.post("/user", function (req, res) {
     }
     else if (req.headers.authorization && req.body.otp) {
         token = req.headers.authorization.split(' ')[1];
-        jwtr.verify(token, "creation").then((tokenv) => {
+        jwtVerify(token, "creation").then((tokenv) => {
             user.findOne({ _id: tokenv._id }, function (err, result) {
                 if (result.otp === req.body.otp) {
                     return res.status(200).json({
@@ -122,7 +121,7 @@ app.post("/user", function (req, res) {
             }
             var lat = parseFloat(req.body.lat);
             var long = parseFloat(req.body.lng);
-            jwtr.verify(token, "creation").then((tokenv) => {
+            jwtVerify(token, "creation").then((tokenv) => {
                 user.updateOne({ _id: tokenv._id }, { location: location, lat: lat, long: long, delivery_address:req.body.delivery_address}, function (err, result) {
                     if (result.otp === req.body.otp) {
                         return res.status(200).json({
@@ -175,7 +174,7 @@ app.post("/user", function (req, res) {
                             email: result.email,
                             phone_number: result.phone_number
                         }
-                        jwtr.sign(add, "creation").then((c_token) => {
+                        jwtSign(add, "creation").then((c_token) => {
                             return res.json({
                                 status: true,
                                 otp: o,
@@ -224,7 +223,7 @@ app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res
     }
     else {
         token = req.headers.authorization.split(' ')[1];
-        jwtr.verify(token, "creation").then(tokenv => {
+        jwtVerify(token, "creation").then(tokenv => {
             if (req.files.length) {
                 user.updateOne({ _id: tokenv._id }, {
                     image: req.files[0].location, name: req.body.name, email: req.body.email, phone_number: req.body.phone_number,
@@ -275,7 +274,7 @@ app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res
 //for viewing the profile detail
 app.get("/view-profile", middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token, "creation").then(tokenv => {
+    jwtVerify(token, "creation").then(tokenv => {
         user.findOne({ _id: tokenv._id }, function (err, result) {
             if (result) {
                 let data = {
@@ -327,7 +326,7 @@ app.post('/login', function (req, res) {
                         {
                             add.verified_seller = result.verified_seller
                         }
-                        jwtr.sign(add, "creation").then((c_token) => {
+                        jwtSign(add, "creation").then((c_token) => {
                             return res.json({
                                 status: true,
                                 seller:add.verified_seller,
@@ -379,7 +378,7 @@ app.post('/login', function (req, res) {
                         email:result.email,
                         name:result.name
                     }
-                    jwtr.sign(add,'creation').then(g_token=>{
+                    jwtSign(add,'creation').then(g_token=>{
                         return res.json({
                             sucess:true,
                             token:g_token,
@@ -412,7 +411,7 @@ app.post('/login', function (req, res) {
                                 email:result.email,
                                 name:result.name
                             }
-                            jwtr.sign(add,'creation').then(g_token=>{
+                            jwtSign(add,'creation').then(g_token=>{
                                 return res.json({
                                     sucess:true,
                                     token:g_token,
@@ -458,7 +457,7 @@ app.post('/login', function (req, res) {
                         facebook_id:result.facebook_id,
                         name:result.name
                     }
-                    jwtr.sign(add,'creation').then(f_token=>{
+                    jwtSign(add,'creation').then(f_token=>{
                         return res.json({
                             sucess:true,
                             token:f_token,
@@ -490,7 +489,7 @@ app.post('/login', function (req, res) {
                                 facebook_id:result.facebook_id,
                                 name:result.name
                             }
-                            jwtr.sign(add,'creation').then(f_token=>{
+                            jwtSign(add,'creation').then(f_token=>{
                                 return res.json({
                                     sucess:true,
                                     token:f_token,
@@ -596,7 +595,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
                 Image: data.Pan_Image
             };
             if (data.image) {
-                jwtr.verify(token, 'creation').then(tokenv => {
+                jwtVerify(token, 'creation').then(tokenv => {
                     seller.updateOne({ _id: tokenv._id }, {
                         image: data.image,
                         Pancard_info: pan,
@@ -625,7 +624,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
                 })
             }
             else {
-                jwtr.verify(token, 'creation').then(tokenv => {
+                jwtVerify(token, 'creation').then(tokenv => {
                     seller.updateOne({ _id: tokenv._id }, {
                         Pancard_info: pan,
                         Adhaar_info: adhaar,
@@ -680,7 +679,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
                 IFSE_code: req.body.ifse,
                 Bank_name: req.body.bank_name
             }
-            jwtr.verify(token, "creation").then(tokenv => {
+            jwtVerify(token, "creation").then(tokenv => {
                 seller.updateOne({ _id: tokenv._id }, { Bank_details: bank }, function (err, result) {
                     if (result) {
                         return res.json({
@@ -706,7 +705,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 
     }
     else if (req.body.bio) {
-        jwtr.verify(token, "creation").then(tokenv => {
+        jwtVerify(token, "creation").then(tokenv => {
             seller.updateOne({ _id: tokenv._id }, { bio: req.body.bio, verified_seller: true }, function (err, result) {
                 if (result) {
                     return res.json({
@@ -728,7 +727,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 
     }
     else if (req.body.delivery_option) {
-        jwtr.verify(token, "creation").then(tokenv => {
+        jwtVerify(token, "creation").then(tokenv => {
             let option = [];
             let j=0,k=0;
             for(let i=0;i<req.body.delivery_option.length;i++)
@@ -806,7 +805,7 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
             start_time: req.body.start,
             end_time: req.body.end
         }
-        jwtr.verify(token, "creation").then(tokenv => {
+        jwtVerify(token, "creation").then(tokenv => {
             seller.findOneAndUpdate({ _id: tokenv._id }, { schedule: schedule }, function (err, result) {
                 if (result) {
                     return res.json({
@@ -936,7 +935,7 @@ app.post('/favorite', middleware.isloggedin, function (req, res) {
         });
     }
     else {
-        jwtr.verify(token, 'creation').then(tokenv => {
+        jwtVerify(token, 'creation').then(tokenv => {
             favorite.findOne({ user_id: tokenv._id, item_id: req.body.item_id }, function (err, result) {
                 if (tokenv._id != req.body.seller_id) {
                     if (result && req.body.like_status === true) {
@@ -1015,7 +1014,7 @@ app.post('/favorite', middleware.isloggedin, function (req, res) {
 //viewing users-favorite
 app.get('/view-favorite',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token, "creation").then(tokenv => {
+    jwtVerify(token, "creation").then(tokenv => {
         user.findOne({ _id: tokenv._id }, function (err, result) {
             if(result){
                 item.aggregate([
@@ -1078,7 +1077,7 @@ app.get('/view-favorite',middleware.isloggedin,function(req,res){
                             "item_name":1,
                             "price":1,
                             "seller_name":"$seller.name",
-                            "distance":{$round:["$seller.dist.calculated",1]}
+                            "distance":{$round:["$seller.dist.calculated",2]}
                         }
                     }
         
@@ -1111,7 +1110,7 @@ app.get('/view-favorite',middleware.isloggedin,function(req,res){
 //blogs
 app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token, "creation").then(tokenv => {
+    jwtVerify(token, "creation").then(tokenv => {
         let data = {
             user_id: tokenv._id,
             image: req.files[0].location,
@@ -1144,7 +1143,7 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
 //view-blogs
 app.get('/get-blogs',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         blogs.aggregate([
             {
                 $match:{
@@ -1203,7 +1202,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
         else {
             if(req.files && req.body.item_name && req.body.category && req.body.price && req.body.description)
             {
-                jwtr.verify(token, "creation").then(tokenv => {
+                jwtVerify(token, "creation").then(tokenv => {
                 seller.findOne({_id: tokenv._id}, function (err, result) {
                     if (result.verified_seller) {
                         let data = {
@@ -1264,7 +1263,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     {
         if(req.body.item_id)
         {
-            jwtr.verify(token,'creation').then(tokenv=>{
+            jwtVerify(token,'creation').then(tokenv=>{
                 item.findOne({_id:req.body.item_id,seller_id:tokenv._id},function(err,result){
                     if(result)
                     {
@@ -1334,7 +1333,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     }
     else if(req.body.operation === 'edit')
     {
-        jwtr.verify(token,'creation').then(tokenv=>{
+        jwtVerify(token,'creation').then(tokenv=>{
             if(req.files.length && req.body.item_name && req.body.category && req.body.price && req.body.description){
                 let data = {
                 i_image:req.files[0].location,
@@ -1413,7 +1412,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     }
     else if(req.body.operation === 'delete')
     {
-        jwtr.verify(token,'creation').then(tokenv=>{
+        jwtVerify(token,'creation').then(tokenv=>{
             if(req.body.item_id)
             {
                 item.deleteOne({_id:req.body.item_id,seller_id:tokenv._id},function(d_err,d_result){
@@ -1483,7 +1482,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
 //List view of item by seller
 app.get('/listed-item',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         item.aggregate([
             {
                 $match:{
@@ -1523,7 +1522,7 @@ app.get('/listed-item',middleware.isloggedin,function(req,res){
 //adding item to add_to_cart
 app.post('/addToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,"creation").then(tokenv=>{
+    jwtVerify(token,"creation").then(tokenv=>{
         if(req.body.item_id && req.body.quantity && req.body.order_type && req.body.seller_id)
         {
             
@@ -1646,7 +1645,7 @@ app.post('/addToCart',middleware.isloggedin,function(req,res){
 //viewing item in cart
 app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         user.findOne({_id:tokenv._id},function(err,result){
             if(result)
             {
@@ -1732,7 +1731,7 @@ app.get('/ViewaddToCart',middleware.isloggedin,function(req,res){
 //deleting items in addToCart
 app.delete('/delete_addToCart/:item_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         addToCart.deleteOne({user_id:tokenv._id,item_id:req.params.item_id},function(err,result){
             if(result && result.n)
             {   
@@ -1754,7 +1753,7 @@ app.delete('/delete_addToCart/:item_id',middleware.isloggedin,function(req,res){
 //addToCart to orders
 app.post('/add_to_order',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         user.findOne({_id:tokenv._id},function(err,result){
             if(result)
             {
@@ -1847,7 +1846,7 @@ app.post('/add_to_order',middleware.isloggedin,function(req,res){
 //views_MY_order 
 app.get('/My_order',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         order.aggregate([
             {
                 $sort:{"date":-1}
@@ -1969,7 +1968,7 @@ app.get('/My_order',middleware.isloggedin,function(req,res){
 //adding reviews
 app.post('/review',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         if(req.body.order_id && req.body.seller_id && req.body.star && req.body.message)
         {
             review.findOne({user_id:tokenv._id,order_id:req.body.order_id},function(error,result){
@@ -2036,7 +2035,7 @@ app.post('/review',middleware.isloggedin,function(req,res){
 //getting reviews to seller
 app.get('/get-reviews',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         review.aggregate([
             {
                 $match:{
@@ -2094,7 +2093,7 @@ app.get('/get-reviews',middleware.isloggedin,function(req,res){
 //view particular order
 app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         order.aggregate([
             {
                 $match:{
@@ -2173,7 +2172,7 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
 //trending
 app.get('/trending/:option',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         user.findOne({_id:tokenv._id},function(err1,result1){
             if(result1)
             {
@@ -2261,7 +2260,7 @@ app.get('/trending/:option',middleware.isloggedin,function(req,res){
                                 "i_image":1,
                                 "item_name":1,
                                 "count":"$fav.like_status",
-                                "distance":{$round:["$seller.dist.calculated",1]}
+                                "distance":{$round:["$seller.dist.calculated",2]}
                             }
                         },
                         {
@@ -2310,7 +2309,7 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
     if(req.params.option === 'delivery' || req.params.option === 'pickup_only')
     {
-        jwtr.verify(token, "creation").then(tokenv => {
+        jwtVerify(token, "creation").then(tokenv => {
             user.findOne({ _id: tokenv._id }, function (err, result) {
                 if (result) {
                     item.aggregate([
@@ -2398,7 +2397,7 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
                                 "i_image": 1,
                                 "item_name": 1,
                                 "category":1,
-                                "distance":{$round:["$seller.dist.calculated",1]},
+                                "distance":{$round:["$seller.dist.calculated",2]},
                                 "seller_id": 1,
                                 "liked":"$favorites.like_status"
                             }
@@ -2444,7 +2443,7 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
 //openning item
 app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token, "creation").then(tokenv => {
+    jwtVerify(token, "creation").then(tokenv => {
         user.findOne({ _id: tokenv._id }, function (err, result) {
             if(result){
                 item.aggregate([
@@ -2533,7 +2532,7 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
                             "reviews":{$avg:"$seller.reviews.star"},
                             "reviews_length":"$seller.reviews",
                             "seller_name":"$seller.name",
-                            "distance":{$round:["$seller.dist.calculated",1]},
+                            "distance":{$round:["$seller.dist.calculated",2]},
                             "description":1,
                             "liked":"$favorites.like_status",
                             "seller_id":"$seller._id"
@@ -2570,7 +2569,7 @@ app.get('/view_item1/:item_id', middleware.isloggedin, function (req, res) {
 //show order list to seller 
 app.get('/show_orders_list_to_seller',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{ 
+    jwtVerify(token,'creation').then(tokenv=>{ 
         seller.findOne({_id:tokenv._id},function(err,result){
             if(result && result.verified_seller)
             {
@@ -2635,7 +2634,7 @@ app.get('/show_orders_list_to_seller',middleware.isloggedin,function(req,res){
 //status changing of order_list
 app.post('/show_order_status',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         seller.findOne({_id:tokenv._id},function(err,result){
             if(result && result.verified_seller)
             {
@@ -2762,7 +2761,7 @@ app.post('/change-password', middleware.isloggedin, function (req, res) {
     }
     token = req.headers.authorization.split(' ')[1];
     if (req.body.old_password && req.body.new_password && req.body.confirm_password) {
-        jwtr.verify(token, 'creation').then(tokenv => {
+        jwtVerify(token, 'creation').then(tokenv => {
             user.findOne({ _id: tokenv._id }, function (err, result) {
                 if (result) {
                     bcrypt.compare(req.body.old_password, result.password, function (b_err, b_result) {
@@ -2828,7 +2827,7 @@ app.post('/change-password', middleware.isloggedin, function (req, res) {
 //search
 app.get('/search/:search',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token,'creation').then(tokenv=>{
+    jwtVerify(token,'creation').then(tokenv=>{
         user.findOne({_id:tokenv._id},function(err,result){
             if(result)
             {    item.aggregate([
@@ -2930,23 +2929,6 @@ app.get('/search/:search',middleware.isloggedin,function(req,res){
             }
         })
         
-    })
-})
-//logout
-app.post("/logout", middleware.isloggedin, function (req, res) {
-    token = req.headers.authorization.split(' ')[1];
-    jwtr.verify(token, 'creation').then((tokenv) => {
-        jwtr.destroy(tokenv.jti).then((destroy) => {
-            return res.json({
-                message: "Logout sucessfull... token destoryed",
-                sucess: true
-            })
-        })
-    }).catch((token_err) => {
-        return res.status(400).json({
-            error: true,
-            message: "Something went wrong"
-        })
     })
 })
 //server listen
