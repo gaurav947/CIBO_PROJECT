@@ -1145,13 +1145,39 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
 app.get('/get-blogs',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        blogs.find({user_id:tokenv._id},function(error,result){
+        blogs.aggregate([
+            {
+                $match:{
+                    user_id:mongoose.Types.ObjectId(tokenv._id)
+                }
+            },
+            {
+                $lookup:{
+                    from:"users",
+                    localField:"user_id",
+                    foreignField:"_id",
+                    as:"user"
+                }
+            },
+            {
+                $unwind:"$user"
+            },
+            {
+                $project:{
+                    "image":1,
+                    "title":1,
+                    "desc":1,
+                    "date":1,
+                    "user_name":"$user.name"
+                }
+            }
+        ],function(err,result){
             if(result)
             {
                 return res.json({
                     sucess:true,
                     data:result,
-                    message:"Your data fetched sucessfully!!.."
+                    message:"Data fetched sucessfully"
                 })
             }
             else
