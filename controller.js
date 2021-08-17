@@ -281,6 +281,7 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
                     image: result.image,
                     name: result.name,
                     email: result.email,
+                    address:result.delivery_address,
                     phone_number: result.phone_number,
                     bio: result.bio
                 }
