@@ -72,6 +72,7 @@ const upload = multer({fileFilter,storage: multers3({
 
 var path = require('path');
 const { resolveSoa } = require("dns");
+const JWTR = require("jwtr/src/JWTR");
 
 //for creating user
 app.post("/user", function (req, res) {
@@ -797,6 +798,27 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
     }
 
 })
+app.get('/view_delivery-option',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtVerify(token,'creation').then(tokenv=>{
+        seller.findOne({_id:tokenv._id},function(error,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    delivery_option:result.Delivery_options
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"error while fetching delivery_option"
+                })
+            }
+        })
+    })
+})
 //set schedule for sellerqq
 app.post("/schedule", middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -838,8 +860,7 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
 //default home page
 app.get('/',(req,res)=>{
     res.send('hellow')
-   })
-
+});
 //forget 
 var valid = 0;
 app.post('/forget', function (req, res) {``
