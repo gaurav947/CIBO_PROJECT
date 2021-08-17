@@ -1145,7 +1145,7 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
 app.get('/get-blogs',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtr.verify(token,'creation').then(tokenv=>{
-        blogs.findOne({user_id:tokenv._id},function(error,result){
+        blogs.find({user_id:tokenv._id},function(error,result){
             if(result)
             {
                 return res.json({
