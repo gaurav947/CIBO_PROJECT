@@ -310,6 +310,7 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
 })
 //login for user
 app.post('/login', function (req, res) {
+    console.log("login");
     if(req.body.type==="manual"){
         if (req.body.email != "" && req.body.password != "") {
         user.findOne({ email: req.body.email }, function (err, result) {
