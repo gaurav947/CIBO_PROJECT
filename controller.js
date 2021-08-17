@@ -2283,6 +2283,7 @@ app.get('/trending/:option',middleware.isloggedin,function(req,res){
                             $project:{
                                 "i_image":1,
                                 "item_name":1,
+                                "category":1,
                                 "count":"$fav.like_status",
                                 "liked":"$user_fav.like_status",
                                 "distance":{$round:["$seller.dist.calculated",2]}
