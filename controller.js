@@ -311,7 +311,6 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
 })
 //login for user
 app.post('/login', function (req, res) {
-    console.log("jatt da muqabla");
     if(req.body.type==="manual"){
         if (req.body.email != "" && req.body.password != "") {
         user.findOne({ email: req.body.email }, function (err, result) {
@@ -1520,7 +1519,6 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
             message:"Please specify the operation you perform"
         })
     }
-
 })
 //List view of item by seller
 app.get('/listed-item',middleware.isloggedin,function(req,res){
@@ -2475,13 +2473,14 @@ app.get('/new-items/:option', middleware.isloggedin, function (req, res) {
                         if (result && result.length) {
                             return res.json({
                                 sucess: true,
-                                data: result
+                                data: result,
+                                message:"fetched sucessfully!"
                             })
                         }
                         if (err) {
                             return res.status(400).json({
-                                sucess: true,
-                                data: result
+                                error: true,
+                                message:"Error while fetching new-items"
                             })
                         }
                         else
