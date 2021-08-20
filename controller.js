@@ -2897,7 +2897,8 @@ app.get('/show_orders_list_to_seller',middleware.isloggedin,function(req,res){
                         $project:{
                             all_item:1,
                             order_type:1,
-                            seller_status:1
+                            seller_status:1,
+                            "orderAmount":{$sum:"$all_item.price"}
                         }
                     }
                 ],function(err1,result1){
@@ -2906,7 +2907,7 @@ app.get('/show_orders_list_to_seller',middleware.isloggedin,function(req,res){
                         return res.json({
                             sucess:true,
                             data:result1,
-                            message:"Data fetched sucessfully...."
+                            message:"Data fetched sucessfully"
                         })
                     }
                     else
