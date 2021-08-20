@@ -2562,6 +2562,8 @@ app.post('/pickup',middleware.isloggedin,function(req,res){
                                         "reviews":"$reviews",
                                         "name":1,
                                         "image":1,
+                                        "lat":1,
+                                        "long":1,
                                         "dist.calculated": 1
                                     }
                                 }
@@ -2578,6 +2580,8 @@ app.post('/pickup',middleware.isloggedin,function(req,res){
                             "reviews":{$avg:"$seller.reviews.star"},
                             "seller_name":"$seller.name",
                             "seller_image":"$seller.image",
+                            "lat":"$seller.lat",
+                            "lng":"$seller.long",
                             "distance":{$round:["$seller.dist.calculated",2]},
                             "seller_id": 1,
                             "liked":"$favorites.like_status"
@@ -2677,6 +2681,8 @@ app.post('/pickup',middleware.isloggedin,function(req,res){
                                             "reviews":"$reviews",
                                             "name":1,
                                             "image":1,
+                                            "lat":1,
+                                            "long":1,
                                             "dist.calculated": 1
                                         }
                                     }
@@ -2693,6 +2699,8 @@ app.post('/pickup',middleware.isloggedin,function(req,res){
                                 "reviews":{$avg:"$seller.reviews.star"},
                                 "seller_name":"$seller.name",
                                 "seller_image":"$seller.image",
+                                "lat":"$seller.lat",
+                                "long":"$seller.long",
                                 "distance":{$round:["$seller.dist.calculated",2]},
                                 "seller_id": 1,
                                 "liked":"$favorites.like_status"
