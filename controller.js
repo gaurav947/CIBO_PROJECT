@@ -3237,6 +3237,31 @@ app.get('/search/:search',middleware.isloggedin,function(req,res){
         
     })
 })
+app.get('/fetch_seller/:seller_id',middleware.isloggedin,function(req,res){
+    user.findOne({_id:mongoose.Types.ObjectId(req.params.seller_id)},function(err,result){
+        if(result)
+        {
+            var add = {};
+            add.delivery_address = result.delivery_address;
+            add.image = result.image;
+            add.name = result.name;
+            add.bio = result.bio;
+            res.json({
+                sucess:true,
+                data:add,
+                message:"Sucessfully fetched seller data"
+            })
+        }
+        else
+        {
+            res.status(400).json({
+                error:true,
+                err:err,
+                message:"Error while fetching data"
+            })
+        }
+    })
+})
 //server listen
 var port = process.env.PORT || 8086;
 app.listen(port, function (err,result) {
