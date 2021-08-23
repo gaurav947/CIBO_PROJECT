@@ -3203,6 +3203,7 @@ app.get('/search/:search',middleware.isloggedin,function(req,res){
                             "i_image":1,
                             "item_name":1,
                             "price":1,
+                            "category":1,
                             "seller_name":"$seller.name",
                             "distance":{$round:["$seller.dist.calculated",1]}
                         }
