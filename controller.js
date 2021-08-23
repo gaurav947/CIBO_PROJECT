@@ -1521,7 +1521,7 @@ app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     }
 })
 //List view of item by seller
-app.get('/listed-item',middleware.isloggedin,function(req,res){
+app.get('/listed-item',middleware.isloggedin,function(req,res){ 
     token = req.headers.authorization.split(' ')[1];
     jwtVerify(token,'creation').then(tokenv=>{
         item.aggregate([
@@ -1536,6 +1536,7 @@ app.get('/listed-item',middleware.isloggedin,function(req,res){
                     i_image:1,
                     category:1,
                     price:1,
+                    special_notes:1,
                     i_active:1,
                     description:1
                 }
