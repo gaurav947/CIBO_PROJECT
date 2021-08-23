@@ -1232,6 +1232,54 @@ app.get('/get-blogs',middleware.isloggedin,function(req,res){
         })
     })
 })
+app.get('/get-blogs-of-seller/:seller_id',middleware.isloggedin,function(req,res){
+    token = req.headers.authorization.split(' ')[1];
+    jwtVerify(token,'creation').then(tokenv=>{
+        blogs.aggregate([
+            {
+                $match:{
+                    user_id:mongoose.Types.ObjectId(req.params.seller_id)
+                }
+            },
+            {
+                $lookup:{
+                    from:"users",
+                    localField:"user_id",
+                    foreignField:"_id",
+                    as:"user"
+                }
+            },
+            {
+                $unwind:"$user"
+            },
+            {
+                $project:{
+                    "image":1,
+                    "title":1,
+                    "desc":1,
+                    "date":1,
+                    "user_name":"$user.name"
+                }
+            }
+        ],function(err,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    data:result,
+                    message:"Data fetched sucessfully"
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    message:"Error while data"
+                })
+            }
+        })
+    })
+})
 //storing items by seller
 app.post('/items', upload.any(), middleware.isloggedin, function (req, res) {
     token = req.headers.authorization.split(' ')[1];
@@ -1539,6 +1587,51 @@ app.get('/listed-item',middleware.isloggedin,function(req,res){
                     price:1,
                     special_notes:1,
                     i_active:1,
+                    description:1
+                }
+            }
+        ],function(err,result){
+            if(result)
+            {
+                return res.json({
+                    sucess:true,
+                    data:result,
+                    message:"data fetched sucessfully"
+                })
+            }
+            else
+            {
+                return res.status(400).json({
+                    error:true,
+                    err:err,
+                    messahe:"Error while fetching data"
+                })
+            }
+        })
+    })
+})
+//list viewed by buyer
+app.get('/listed-item-of-seller/:seller_id',middleware.isloggedin,function(req,res){ 
+    token = req.headers.authorization.split(' ')[1];
+    jwtVerify(token,'creation').then(tokenv=>{
+        item.aggregate([
+            {
+                $match:{
+                    i_active:"true"
+                }
+            },
+            {
+                $match:{
+                    seller_id:mongoose.Types.ObjectId(req.params.seller_id)
+                }
+            },
+            {
+                $project:{
+                    item_name:1,
+                    i_image:1,
+                    category:1,
+                    price:1,
+                    special_notes:1,
                     description:1
                 }
             }
@@ -2076,13 +2169,13 @@ app.post('/review',middleware.isloggedin,function(req,res){
     })
 })
 //getting reviews to seller
-app.get('/get-reviews',middleware.isloggedin,function(req,res){
+app.get('/get-reviews/:seller_id',middleware.isloggedin,function(req,res){
     token = req.headers.authorization.split(' ')[1];
     jwtVerify(token,'creation').then(tokenv=>{
         review.aggregate([
             {
                 $match:{
-                    seller_id:mongoose.Types.ObjectId(tokenv._id)
+                    seller_id:mongoose.Types.ObjectId(req.params.seller_id)
                 }
             },
             {
