@@ -2276,7 +2276,7 @@ app.get('/view_order/:order_id',middleware.isloggedin,function(req,res){
                     payment_method:1,
                     seller_id:1,
                     "reviews":"$reviews.star",
-                    "Total Pay":{$sum:"$all_item.price"}
+                    "Total_Pay":{$sum:"$all_item.price"}
                 }
             }
         ],function(err,result){
