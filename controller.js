@@ -1,52 +1,78 @@
+//requiring mongoose
 var mongoose = require("mongoose");
+//requiring express
 var express = require("express");
 
+//adding express to app variable
 var app = express();
+
+//requiring user_schema for adding or getting data 
 var user = require("./user_schema");
+//require seller_schema
 var seller = require("./seller_schema");
+//require item_schema
 var item = require("./item_schema");
+//require blogs_schema
 var blogs = require("./blogs_schema");
+//require fav_schema
 var favorite = require("./fav_schema");
+//require addToCart_schema
 var addToCart = require("./addToCart_schema");
+//require order_schema
 var order = require("./order_schema");
+//require reviews_schema
 var review = require("./reviews_schema");
 
+//using express.json() for parsing data to json
 app.use(express.json());
+//using express.urlencoded
 app.use(express.urlencoded({ extended: false }));
+//requiring CORS
 var cors = require ("cors");
 app.use(cors());
+
 
 mongoose.set("useFindAndModify", false);
 
 //otp-generator => for generating OTP
 var otpGenerator = require("otp-generator");
+//requiring util
 const util = require("util");
 var _jwt = require("jwtr");
 const jwtVerify = util.promisify(_jwt.verify);
 const jwtSign = util.promisify(_jwt.sign);
 
-//bcrypt => for hashing
+//bcrypt => for encrypting the password
 var bcrypt = require("bcrypt");
 var saltRounds = 10;
 
 var middleware = require("./middleware");
 var nodemailer = require("nodemailer");
 
+//setup of ejs templates
 app.set("view engine", "ejs");
 
+//requiring dotenv for environment variable
 const dotenv = require("dotenv");
 dotenv.config();
 
+//requiring multer
 var multer = require("multer");
 
 app.use(express.static(__dirname));
+
+//requiring aws-sdk for storing images in s3 bucket
 const AWS = require("aws-sdk");
+//using multer-s3 for giving path
 const multers3 = require("multer-s3");
+
+//access keys of IAM user
 const s3 = new AWS.S3({
 	accessKeyId:process.env.AWS_ACCESS_KEY,
 	secretAccessKey:process.env.AWS_SECRET_ACCESS_KEY
 });
 
+//adding filefilter
 const fileFilter = (req, file, cb) => {
 	if (file.mimetype === "image/jpeg" || file.mimetype === "image/png") {
 		cb(null, true);
@@ -54,6 +80,8 @@ const fileFilter = (req, file, cb) => {
 		cb(null, false);
 	}
 };
+
+//upload through multer
 const upload = multer({fileFilter,storage: multers3({
 	acl: "public-read",
 	s3,
@@ -76,18 +104,21 @@ const { TimestreamQuery } = require("aws-sdk");
 
 //for creating user
 app.post("/user", function (req, res) {
+	//check the password are same
 	if (req.body.password !== req.body.confirm_p) {
 		return res.status(400).json({
 			error: true,
 			message: "Passwords are not matched!!.."
 		});
 	}
+	//checking the format for email validation
 	else if (/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
 		return res.status(400).json({
 			error: true,
 			message: "Please check your mail is not in format"
 		});
 	}
+	//generating the OTP
 	else if (req.headers.authorization && req.body.otp) {
 		var token = req.headers.authorization.split(" ")[1];
 		jwtVerify(token, "creation").then((tokenv) => {
@@ -115,8 +146,9 @@ app.post("/user", function (req, res) {
 			});
 		});
 	}
+	//storing lat and long
 	else if (req.headers.authorization && req.body.lat && req.body.lng && req.body.delivery_address) {
-		var token = req.headers.authorization.split(" ")[1];
+		token = req.headers.authorization.split(" ")[1];
 		var location = {
 			type: "Point",
 			coordinates: [parseFloat(req.body.lng), parseFloat(req.body.lat)]
@@ -146,28 +178,34 @@ app.post("/user", function (req, res) {
 		});
 	}
 	else {
+		//checking the phone number length
 		if (req.body.phone_number.toString().length != 10 && req.body.phone_number) {
 			return res.status(400).json({
 				error: true,
 				message: "Phone number length should be 10"
 			});
 		}
+		//checking the password length
 		if ((req.body.password).length < 6) {
 			return res.status(400).json({
 				error: true,
 				message: "Password length should be 6 or more"
 			});
 		}
-		var o = otpGenerator.generate(5, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+		//generating otp from otpGenerator
+		var otp = otpGenerator.generate(5, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+		//encrypting the password
 		bcrypt.hash(req.body.password, saltRounds, function (b_err, b_result) {
 			if (b_result) {
+				//storing All data in data object
 				var data = {
 					email: req.body.email,
 					name: req.body.name,
 					phone_number: req.body.phone_number,
-					otp: o,
+					otp: otp,
 					password: b_result
 				};
+				//storing data in user collection
 				user.create(data, function (err, result) {
 					if (result) {
 						var add = {
@@ -176,6 +214,7 @@ app.post("/user", function (req, res) {
 							email: result.email,
 							phone_number: result.phone_number
 						};
+						//create a token and store some data it in token
 						jwtSign(add, "creation").then((c_token) => {
 							return res.json({
 								status: true,
@@ -186,6 +225,7 @@ app.post("/user", function (req, res) {
 						}).catch((c_err) => {
 							return res.status(400).json({
 								error: true,
+								err_message:c_err,
 								message: "Something went wrong"
 							});
 						});
@@ -211,12 +251,14 @@ app.post("/user", function (req, res) {
 });
 //for updating user detail
 app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res) {
+	//checking the email format
 	if (/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
 		return res.status(400).json({
 			error: true,
 			message: "Please check your mail is not in format"
 		});
 	}
+	//checking the phone number length
 	else if (req.body.phone_number.toString().length != 10 && req.body.phone_number) {
 		return res.status(400).json({
 			error: true,
@@ -226,12 +268,13 @@ app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res
 	else {
 		var token = req.headers.authorization.split(" ")[1];
 		jwtVerify(token, "creation").then(tokenv => {
+			//if update have a image
 			if (req.files.length) {
+				//after validating update the information in user collection
 				user.updateOne({ _id: tokenv._id }, {
 					image: req.files[0].location, name: req.body.name, email: req.body.email, phone_number: req.body.phone_number,
 					bio: req.body.bio
 				}, function (err, result) {
-
 					if (result) {
 						return res.json({
 							status: true,
@@ -246,6 +289,7 @@ app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res
 					}
 				});
 			}
+			//if update request have not image
 			else if (!req.files.length) {
 				user.updateOne({ _id: tokenv._id }, {
 					name: req.body.name, email: req.body.email, phone_number: req.body.phone_number,
@@ -277,6 +321,7 @@ app.post("/update-user", upload.any(), middleware.isloggedin, function (req, res
 app.get("/view-profile", middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
 	jwtVerify(token, "creation").then(tokenv => {
+		//getting the user profile data
 		user.findOne({ _id: tokenv._id }, function (err, result) {
 			if (result) {
 				let data = {
@@ -312,10 +357,14 @@ app.get("/view-profile", middleware.isloggedin, function (req, res) {
 });
 //login for user
 app.post("/login", function (req, res) {
+	//checking if it is login through manual process of login
 	if(req.body.type==="manual"){
+		//checking the if the email and password are not empty or null
 		if (req.body.email != "" && req.body.password != "") {
+			//finding the user email in database
 			user.findOne({ email: req.body.email }, function (err, result) {
 				if (result) {
+					//check if its password is same through bcrypt compare
 					bcrypt.compare(req.body.password, result.password, function (c_err, c_sucess) {
 						if (c_sucess == true) {
 							var add = {
@@ -324,10 +373,12 @@ app.post("/login", function (req, res) {
 								email: result.email,
 								phone_number: result.phone_number
 							};
+							//checking if it is seller
 							if(result.verified_seller)
 							{
 								add.verified_seller = result.verified_seller;
 							}
+							//generting token
 							jwtSign(add, "creation").then((c_token) => {
 								return res.json({
 									status: true,
@@ -338,10 +389,12 @@ app.post("/login", function (req, res) {
 							}).catch((c_err) => {
 								return res.status(400).json({
 									error: true,
+									err_message:c_err,
 									message: "Something went wrong"
 								});
 							});
 						}
+						//check of password sucess
 						if (c_err || c_sucess == false) {
 							return res.status(400).json({
 								error: true,
@@ -367,6 +420,7 @@ app.post("/login", function (req, res) {
 			});
 		}
 	}
+	//checking if it is login through google process 
 	else if(req.body.type === "google")
 	{
 		if(req.body.google_id!="" && req.body.email!= "" && req.body.name != "")
@@ -447,6 +501,7 @@ app.post("/login", function (req, res) {
 			});
 		}
 	}
+	//checking if it is login through facebook process 
 	else if(req.body.type === "facebook")
 	{
 		if(req.body.facebook_id!="" && req.body.name != "")
@@ -542,9 +597,13 @@ app.post("/login", function (req, res) {
 //become a seller
 app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//checking if this data is entered
 	if (req.files && req.body.street_name && req.body.city && req.body.state && req.body.pin) {
 		var j = 0;
+		//empty data object
 		let data = {};
+
+		//loop for images requied total three images and store them into data object 
 		for (let i = 0; i < (req.files).length; i++) {
 			if (req.files[i].fieldname === "pan_Image") {
 				j = j + 1;
@@ -562,18 +621,21 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 				data.image = req.files[i].location;
 			}
 		}
+		//check if "j" length is less than 3 
 		if (j < 3) {
 			return res.status(400).json({
 				error: true,
 				message: "Please add all the images"
 			});
 		}
+		//checking pan_card length
 		else if ((req.body.pan_card).length != 10) {
 			return res.status(400).json({
 				error: true,
 				message: "Pan card number must be 10"
 			});
 		}
+		//checking adhaar card length
 		else if (req.body.adhaar_card.toString().length != 12) {
 			return res.status(400).json({
 				error: true,
@@ -581,17 +643,20 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 			});
 		}
 		else {
+			//create address object for storing seller address
 			let address = {
 				street_name: req.body.street_name,
 				city: req.body.city,
 				state: req.body.state,
 				Pin: req.body.pin
 			};
+			//create adhaar object for storing seller adhaar card info
 			let adhaar = {
 				card_no: req.body.adhaar_card,
 				Image_front: data.Adhaar_front,
 				Image_back: data.Adhaar_back
 			};
+			//create pan object for storing seller pan info
 			let pan = {
 				card_no: req.body.pan_card,
 				Image: data.Pan_Image
@@ -621,6 +686,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 				}).catch(err => {
 					return res.status(400).json({
 						error: true,
+						err_message:err,
 						message: "Something went wrong"
 					});
 				});
@@ -649,25 +715,30 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 				}).catch(err => {
 					return res.status(400).json({
 						error: true,
+						err_message:err,
 						message: "Something went wrong"
 					});
 				});
 			}
 		}
 	}
+	//checking if this data is entered
 	else if (req.body.account_number && req.body.account_holder_name && req.body.ifse && req.body.bank_name) {
+		//check length must be of 10 digit
 		if (req.body.account_number.toString().length < 10) {
 			return res.status(400).json({
 				error: true,
 				message: "Account nummber should be greater then or equal to 10"
 			});
 		}
+		//check the length of account_holder_name
 		else if ((req.body.account_holder_name).length < 5) {
 			return res.status(400).json({
 				error: true,
 				message: "Length is too short for holder_name"
 			});
 		}
+		//check length of ifse
 		else if ((req.body.ifse).length != 11) {
 			return res.status(400).json({
 				error: true,
@@ -675,12 +746,14 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 			});
 		}
 		else {
+			//create bank object for storing bank detail
 			var bank = {
 				Account_number: req.body.account_number,
 				A_holder_name: req.body.account_holder_name,
 				IFSE_code: req.body.ifse,
 				Bank_name: req.body.bank_name
 			};
+
 			jwtVerify(token, "creation").then(tokenv => {
 				seller.updateOne({ _id: tokenv._id }, { Bank_details: bank }, function (err, result) {
 					if (result) {
@@ -706,6 +779,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 		}
 
 	}
+	//checking if this data is entered
 	else if (req.body.bio) {
 		jwtVerify(token, "creation").then(tokenv => {
 			seller.updateOne({ _id: tokenv._id }, { bio: req.body.bio, verified_seller: true }, function (err, result) {
@@ -728,6 +802,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 		});
 
 	}
+	//checking if this data is entered
 	else if (req.body.delivery_option) {
 		jwtVerify(token, "creation").then(tokenv => {
 			let option = [];
@@ -802,6 +877,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 app.get("/view_delivery-option",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
 	jwtVerify(token,"creation").then(tokenv=>{
+		//finding seller
 		seller.findOne({_id:tokenv._id},function(error,result){
 			if(result)
 			{
@@ -823,13 +899,16 @@ app.get("/view_delivery-option",middleware.isloggedin,function(req,res){
 //set schedule for seller
 app.post("/schedule", middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//check all fields are entered
 	if (req.body.date && req.body.start && req.body.end) {
+		//schedule object for storing data
 		let schedule = {
 			Date: req.body.date,
 			start_time: req.body.start,
 			end_time: req.body.end
 		};
 		jwtVerify(token, "creation").then(tokenv => {
+			//find and update new schedule entered
 			seller.findOneAndUpdate({ _id: tokenv._id }, { schedule: schedule }, function (err, result) {
 				if (result) {
 					return res.json({
@@ -847,6 +926,7 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
 		}).catch(err => {
 			return res.status(400).json({
 				error: true,
+				err_message:err,
 				message: "Something went wrong"
 			});
 		});
@@ -887,12 +967,14 @@ app.get("/",(req,res)=>{
 //3 API's for forget 
 var valid = 0;
 app.post("/forget", function (req, res) {
+	//check the email format
 	if(/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
 		return res.status(400).json({
 			error: true,
 			message: "Please check your mail is not in format"
 		});
 	}
+	//adding info of user
 	var transporter = nodemailer.createTransport({
 		host: "smtp.mailtrap.io",
 		port: 2525,
@@ -901,7 +983,9 @@ app.post("/forget", function (req, res) {
 			pass: "739f87e138ed54"
 		}
 	});
+	//creating URL 
 	let url = "<a href=\"http://" + req.headers.host + "/forget-reset-password/" + req.body.email + "\">http://" + req.headers.host + "/reset-password/" + req.body.email + "</a>";
+	//sending format
 	let info = transporter.sendMail({
 		from: "CIBO@gmail.com", // sender address
 		to: req.body.email, // list of receivers
@@ -915,22 +999,26 @@ app.post("/forget", function (req, res) {
 	});
 });
 app.get("/forget-reset-password/:email", function (req, res) {
+	//render the ejs templete
 	res.render("reset", { email: req.params.email });
 	valid = 1;
 });
 app.post("/forget-response/:email", function (req, res) {
+	//check the new password
 	if (req.body.New_password != req.body.confirm_password) {
 		return res.status(400).json({
 			error: true,
 			message: "your Passwords are not matched"
 		});
 	}
+	//checking the length password
 	else if ((req.body.New_password).length < 6) {
 		return res.status(400).json({
 			error: true,
 			message: "Password length should be 6 or more"
 		});
 	}
+	//check if it is empty
 	else if (req.body.New_password == "" && req.boy.confirm_password == "" || req.body.New_password == "" || req.body.confirm_password == "") {
 		return res.status(400).json({
 			error: true,
@@ -938,6 +1026,7 @@ app.post("/forget-response/:email", function (req, res) {
 		});
 	}
 	else {
+		//making encrypted data
 		bcrypt.hash(req.body.New_password, saltRounds, function (b_err, b_result) {
 			if (b_result && valid) {
 				user.updateOne({ email: req.params.email }, { password: b_result }).then(result => {
@@ -973,6 +1062,7 @@ app.post("/forget-response/:email", function (req, res) {
 //favorites
 app.post("/favorite", middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//checking if it is empty
 	if (req.body.seller_id == "" || req.body.item_id == "" || req.body.like_status === "") {
 		return res.status(400).json({
 			error: true,
@@ -981,8 +1071,11 @@ app.post("/favorite", middleware.isloggedin, function (req, res) {
 	}
 	else {
 		jwtVerify(token, "creation").then(tokenv => {
+			//favorite findOne
 			favorite.findOne({ user_id: tokenv._id, item_id: req.body.item_id }, function (err, result) {
+				//checking if is not same
 				if (tokenv._id != req.body.seller_id) {
+					//change status to like_status
 					if (result && req.body.like_status === true) {
 						return res.status(400).json({
 							error: true,
@@ -994,7 +1087,7 @@ app.post("/favorite", middleware.isloggedin, function (req, res) {
 							error: true,
 							message: "Something went wrong"
 						});
-					}
+					}//check like_status is true
 					else if (req.body.like_status === true) {
 						let data = {
 							seller_id: req.body.seller_id,
@@ -1002,6 +1095,7 @@ app.post("/favorite", middleware.isloggedin, function (req, res) {
 							item_id: req.body.item_id,
 							like_status: req.body.like_status
 						};
+						//add to favorite
 						favorite.create(data, function (err, result) {
 							if (result) {
 								return res.json({
@@ -1017,6 +1111,7 @@ app.post("/favorite", middleware.isloggedin, function (req, res) {
 							}
 						});
 					}
+					//checking like_status is false
 					else if (req.body.like_status === false) {
 						favorite.deleteOne({ user_id: tokenv._id, item_id: req.body.item_id }, function (err, result) {
 							if (result && result.deletedCount) {
@@ -1051,6 +1146,7 @@ app.post("/favorite", middleware.isloggedin, function (req, res) {
 		}).catch(err => {
 			return res.status(400).json({
 				error: true,
+				err_message:err,
 				message: "Something went wrong"
 			});
 		});
@@ -1060,13 +1156,17 @@ app.post("/favorite", middleware.isloggedin, function (req, res) {
 app.get("/view-favorite",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
 	jwtVerify(token, "creation").then(tokenv => {
+		//find user data
 		user.findOne({ _id: tokenv._id }, function (err, result) {
 			if(result){
+				//aggregate for getting item dataa
 				item.aggregate([
 					{
+						//lookup on favorite
 						$lookup:{
 							from:"favorites",
 							let:{i_id:"$_id"},
+							//pipeline for matching the data inside favorite
 							pipeline:[
 								{
 									$match:{
@@ -1085,12 +1185,15 @@ app.get("/view-favorite",middleware.isloggedin,function(req,res){
 					{
 						$unwind:"$favorites"
 					},
+					//lookup on user to get user data
 					{
 						$lookup:{
 							from:"users",
 							let:{sellerid:"$seller_id"},
+							//pipeline for getting user data and its distance is not greater than 5KM
 							pipeline:[
 								{
+									//adding geonear for getting distance
 									$geoNear:{
 										near: { type: "point", coordinates: [result.long, result.lat] },
 										distanceField: "dist.calculated",
@@ -1099,6 +1202,7 @@ app.get("/view-favorite",middleware.isloggedin,function(req,res){
 										spherical: true
 									}
 								},
+								//matching the seller_id
 								{
 									$match:{
 										$expr:{
@@ -1147,6 +1251,7 @@ app.get("/view-favorite",middleware.isloggedin,function(req,res){
 	}).catch(err=>{
 		return res.status(400).json({
 			error:true,
+			err_message:err,
 			message:"Something went wrong"
 		});
 	});
@@ -1155,13 +1260,16 @@ app.get("/view-favorite",middleware.isloggedin,function(req,res){
 //blogs
 app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token, "creation").then(tokenv => {
+		//create data object for storing data
 		let data = {
 			user_id: tokenv._id,
 			image: req.files[0].location,
 			title: req.body.title,
 			desc: req.body.description
 		};
+		//Insert new blog
 		blogs.create(data, function (err, result) {
 			if (result) {
 				return res.json({
@@ -1188,13 +1296,16 @@ app.post("/blog", upload.any(), middleware.isloggedin, function (req, res) {
 //view-blogs
 app.get("/get-blogs",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//aggregation on blog for matching and getting info of user
 		blogs.aggregate([
 			{
 				$match:{
 					user_id:mongoose.Types.ObjectId(tokenv._id)
 				}
 			},
+			//getting info from user
 			{
 				$lookup:{
 					from:"users",
@@ -1203,6 +1314,7 @@ app.get("/get-blogs",middleware.isloggedin,function(req,res){
 					as:"user"
 				}
 			},
+			//unwind for taking array outside the brackets
 			{
 				$unwind:"$user"
 			},
@@ -1228,6 +1340,7 @@ app.get("/get-blogs",middleware.isloggedin,function(req,res){
 			{
 				return res.status(400).json({
 					error:true,
+					err_message:err,
 					message:"Error while data"
 				});
 			}
@@ -1237,13 +1350,17 @@ app.get("/get-blogs",middleware.isloggedin,function(req,res){
 //seller blogs reviewed by user
 app.get("/get-blogs-of-seller/:seller_id",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//getting seller blogs
 		blogs.aggregate([
 			{
+				//matching seller_id with stored _id
 				$match:{
 					user_id:mongoose.Types.ObjectId(req.params.seller_id)
 				}
 			},
+			//lookup on user for getting user information
 			{
 				$lookup:{
 					from:"users",
@@ -1252,6 +1369,7 @@ app.get("/get-blogs-of-seller/:seller_id",middleware.isloggedin,function(req,res
 					as:"user"
 				}
 			},
+			//unwind user data
 			{
 				$unwind:"$user"
 			},
@@ -1287,7 +1405,9 @@ app.get("/get-blogs-of-seller/:seller_id",middleware.isloggedin,function(req,res
 //storing items by seller
 app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//check for add item operation
 	if(req.body.operation === "add"){
+		//checking item_name length 
 		if (req.body.item_name.length < 6) {
 			return res.status(400).json({
 				error: true,
@@ -1295,11 +1415,16 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 			});
 		}
 		else {
+			//check if this data is available
 			if(req.files && req.body.item_name && req.body.category && req.body.price && req.body.description)
 			{
+				//verify token
 				jwtVerify(token, "creation").then(tokenv => {
+					//finding seller
 					seller.findOne({_id: tokenv._id}, function (err, result) {
+						//check if this verified seller
 						if (result.verified_seller) {
+							//create data object
 							let data = {
 								seller_id: tokenv._id,
 								i_image: req.files[0].location,
@@ -1309,6 +1434,7 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 								description: req.body.description,
 								special_notes: req.body.special_notes
 							};
+							//create data in item
 							item.create(data, function (err, result) {
 								if (result) {
 									return res.json({
@@ -1354,16 +1480,23 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 			}
 		}
 	}
+	//check for status change operation
 	else if(req.body.operation === "status")
 	{
+		//check for item_id
 		if(req.body.item_id)
 		{
+			//verify token
 			jwtVerify(token,"creation").then(tokenv=>{
+				//find the item in item collection
 				item.findOne({_id:req.body.item_id,seller_id:tokenv._id},function(err,result){
+					//check for result
 					if(result)
 					{
+						//check for item is active or not 
 						if(result.i_active === "true")
 						{
+							//update the status of item of the item
 							item.findOneAndUpdate({_id:req.body.item_id},{i_active:"false"},function(u_err,u_result){
 								if(u_result)
 								{
@@ -1382,8 +1515,10 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 								}
 							});
 						}
+						//check if this item is false
 						else if(result.i_active === "false")
 						{
+							//update the item active to true
 							item.findOneAndUpdate({_id:req.body.item_id},{i_active:"true"},function(u_err,u_result){
 								if(u_result)
 								{
@@ -1414,6 +1549,7 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 			}).catch(err=>{
 				return res.status(400).json({
 					error:true,
+					err_message:err,
 					message:"Something went wrong"
 				});
 			});
@@ -1426,10 +1562,14 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 			});
 		}
 	}
+	//check for edit item operation
 	else if(req.body.operation === "edit")
 	{
+		//verify token
 		jwtVerify(token,"creation").then(tokenv=>{
+			//check the available fields
 			if(req.files.length && req.body.item_name && req.body.category && req.body.price && req.body.description){
+				//store data in data object
 				let data = {
 					i_image:req.files[0].location,
 					item_name:req.body.item_name,
@@ -1438,6 +1578,7 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 					description:req.body.description,
 					special_notes:req.body.special_notes
 				};
+				//update the information
 				item.updateOne({_id:req.body.item_id,seller_id:tokenv._id},data,function(u_err,u_result){
 					if(u_result)
 					{
@@ -1456,6 +1597,7 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 					}
 				});  
 			}
+			//check the available fields
 			else if(!req.files.length && req.body.item_name && req.body.category && req.body.price && req.body.description)
 			{
 				let data = {
@@ -1505,14 +1647,19 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 			});
 		});
 	}
+	//check for delete item operation
 	else if(req.body.operation === "delete")
 	{
+		//verify token
 		jwtVerify(token,"creation").then(tokenv=>{
+			//check the item_id is available
 			if(req.body.item_id)
 			{
+				//query for deleting the item
 				item.deleteOne({_id:req.body.item_id,seller_id:tokenv._id},function(d_err,d_result){
 					if(d_result && d_result.n)
 					{
+						//favorite item aslo delete
 						favorite.deleteOne({item_id:req.body.item_id},function(f_err,f_result){
 							console.log("result=>",f_result);
 							if(f_result && f_result.n)
@@ -1565,6 +1712,7 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 			});  
 		});
 	}
+	//if all condition fails
 	else
 	{
 		return res.status(400).json({
@@ -1576,9 +1724,12 @@ app.post("/items", upload.any(), middleware.isloggedin, function (req, res) {
 //List view of item by seller
 app.get("/listed-item",middleware.isloggedin,function(req,res){ 
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//aggregate on item 
 		item.aggregate([
 			{
+				//match used matching seller_id and token id in item
 				$match:{
 					seller_id:mongoose.Types.ObjectId(tokenv._id)
 				}
@@ -1617,13 +1768,17 @@ app.get("/listed-item",middleware.isloggedin,function(req,res){
 //list viewed by buyer
 app.get("/listed-item-of-seller/:seller_id",middleware.isloggedin,function(req,res){ 
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//aggregate on item
 		item.aggregate([
 			{
+				//match for item is active
 				$match:{
 					i_active:"true"
 				}
 			},
+			//match seller_id in item
 			{
 				$match:{
 					seller_id:mongoose.Types.ObjectId(req.params.seller_id)
@@ -1662,11 +1817,14 @@ app.get("/listed-item-of-seller/:seller_id",middleware.isloggedin,function(req,r
 //adding item to add_to_cart
 app.post("/addToCart",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//checking if this item is available
 		if(req.body.item_id && req.body.quantity && req.body.order_type && req.body.seller_id)
 		{
-            
+			//finding the data addtoCart
 			addToCart.findOne({user_id:tokenv._id,item_id:req.body.item_id},function(a_err,a_result){
+				//check if item is already in cart
 				if(a_result)
 				{
 					return res.status(400).json({
@@ -1684,10 +1842,13 @@ app.post("/addToCart",middleware.isloggedin,function(req,res){
 				}  
 				else
 				{
+					//finding item in item collection
 					item.findOne({_id:req.body.item_id},function(i_err,i_result){
 						if(i_result)
 						{ 
+							//calculate total price
 							var cal_price = i_result.price * req.body.quantity;
+							//data object
 							let data = {
 								item_id:req.body.item_id,
 								quantity:req.body.quantity,
@@ -1698,15 +1859,19 @@ app.post("/addToCart",middleware.isloggedin,function(req,res){
 								item_name:i_result.item_name,
 								seller_id:req.body.seller_id
 							};
+							//special instruction
 							if(req.body.special_instruction)
 							{
 								data.special_i = req.body.special_instruction;
 							}
+							//finding user in addtocart 
 							addToCart.findOne({user_id:tokenv._id},function(a1_err,a2_result){
 								if(a2_result)
 								{
+									//matching seller_id's
 									if(a2_result.seller_id == req.body.seller_id)
 									{
+										//insert data to addcart
 										addToCart.create(data,function(a2_err,a2_result){
 											if(a2_result)
 											{
@@ -1741,6 +1906,7 @@ app.post("/addToCart",middleware.isloggedin,function(req,res){
 								}
 								else
 								{
+									//adding data into addTocart
 									addToCart.create(data,function(a2_err,a2_result){
 										if(a2_result)
 										{
@@ -1785,19 +1951,25 @@ app.post("/addToCart",middleware.isloggedin,function(req,res){
 //viewing item in cart
 app.get("/ViewaddToCart",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//find user 
 		user.findOne({_id:tokenv._id},function(err,result){
 			if(result)
 			{
+				//aggregate on addtocart for getting data
 				addToCart.aggregate([
+					//sort in descending order
 					{
 						$sort:{ "date": -1 }
 					},
+					//matching user_id with id
 					{
 						$match:{
 							user_id:mongoose.Types.ObjectId(result._id)
 						}   
 					},
+					//lookup on item getting item information
 					{
 						$lookup:{
 							from:"items",
@@ -1817,6 +1989,7 @@ app.get("/ViewaddToCart",middleware.isloggedin,function(req,res){
 							as: "item"
 						}
 					},
+					//unwind on item 
 					{
 						$unwind:"$item"
 					},
@@ -1871,7 +2044,9 @@ app.get("/ViewaddToCart",middleware.isloggedin,function(req,res){
 //deleting items in addToCart
 app.delete("/delete_addToCart/:item_id",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//delete the item in addtoCart
 		addToCart.deleteOne({user_id:tokenv._id,item_id:req.params.item_id},function(err,result){
 			if(result && result.n)
 			{   
@@ -1893,17 +2068,24 @@ app.delete("/delete_addToCart/:item_id",middleware.isloggedin,function(req,res){
 //addToCart to orders
 app.post("/add_to_order",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//find user in collection
 		user.findOne({_id:tokenv._id},function(err,result){
 			if(result)
 			{
+				//find user in addtocart
 				addToCart.find({user_id:tokenv._id},function(err1,result1){
 					if(result1 && result1.length)
 					{   
+						//empty collector
 						var collector = [];
+						//empty collect1
 						var collect1 = {};
+						//loop on result
 						for(let i=0;i<result1.length;i++)
 						{
+
 							collect1.item_id = mongoose.Types.ObjectId(result1[i].item_id);
 							collect1.quantity = result1[i].quantity;
 							collect1.item_image = result1[i].item_image;
@@ -1913,7 +2095,9 @@ app.post("/add_to_order",middleware.isloggedin,function(req,res){
 							collector.push(collect1);
 							collect1 = {};
 						}
-						var o = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+						//generate order Number
+						var order_number = otpGenerator.generate(9, { digits: true, alphabets: false, upperCase: false, specialChars: false });
+						//data object for storing data for order
 						let data = {
 							all_item:collector,
 							user_id:tokenv._id,
@@ -1922,11 +2106,13 @@ app.post("/add_to_order",middleware.isloggedin,function(req,res){
 							order_type:result1[0].order_type,
 							seller_id:result1[0].seller_id,
 							payment_method:req.body.payment_method,
-							order_number:o
+							order_number:order_number
 						};
+						//insert data to order collection
 						order.create(data,function(o_err,o_result){
 							if(o_result)
 							{
+								//delete data in addtocart
 								addToCart.deleteMany({user_id:tokenv._id},function(d_err,d_result){
 									if(d_result)
 									{
@@ -1986,23 +2172,31 @@ app.post("/add_to_order",middleware.isloggedin,function(req,res){
 //views_MY_order 
 app.get("/My_order",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//aggregate on order for getting data
 		order.aggregate([
+			//sort the data in descending order
 			{
 				$sort:{"date":-1}
 			},
+			//match user_id with token_id
 			{
 				$match:{
 					user_id:mongoose.Types.ObjectId(tokenv._id)
 				}
 			},
+			//addfield create for taking first element
 			{ $addFields: { firstitem: { $first: "$all_item" } } },
+			//loookup on item
 			{
 				$lookup:{
 					from:"items",
 					let: { itemid:"$firstitem.item_id"},
+					//pipeline matching data
 					pipeline:[
 						{
+							//match the item_id
 							$match:{
 								$expr:{
 									$and:[
@@ -2011,6 +2205,7 @@ app.get("/My_order",middleware.isloggedin,function(req,res){
 								}
 							}
 						},
+						//lookup on user collection for user data
 						{
 							$lookup:{
 								from:"users",
@@ -2037,9 +2232,11 @@ app.get("/My_order",middleware.isloggedin,function(req,res){
 					as:"item"
 				}
 			},
+			//unwind item data
 			{
 				$unwind:"$item"
 			},
+			//lookup on reviews for getting reviews
 			{
 				$lookup:{
 					from:"reviews",
@@ -2109,9 +2306,12 @@ app.get("/My_order",middleware.isloggedin,function(req,res){
 //adding reviews
 app.post("/review",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//check if fields are available
 		if(req.body.order_id && req.body.seller_id && req.body.star && req.body.message)
 		{
+			//find reviews on user
 			review.findOne({user_id:tokenv._id,order_id:req.body.order_id},function(error,result){
 				if(result)
 				{
@@ -2124,7 +2324,7 @@ app.post("/review",middleware.isloggedin,function(req,res){
 				{
 					return res.status(400).json({
 						error:true,
-						error:error,
+						error_message:error,
 						message:"Error in review"
 
 					});
@@ -2176,13 +2376,17 @@ app.post("/review",middleware.isloggedin,function(req,res){
 //getting reviews to seller
 app.get("/get-reviews/:seller_id",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//aggregate on reviews getting user data
 		review.aggregate([
+			//matching seller_id 
 			{
 				$match:{
 					seller_id:mongoose.Types.ObjectId(req.params.seller_id)
 				}
 			},
+			//lookup on user getting user details
 			{
 				$lookup:{
 					from:"users",
@@ -2224,7 +2428,7 @@ app.get("/get-reviews/:seller_id",middleware.isloggedin,function(req,res){
 			{
 				return res.status(400).json({
 					error:true,
-					error:error,
+					error_message:error,
 					message:"Eror while fetching data"
 				});
 			}
@@ -2234,9 +2438,12 @@ app.get("/get-reviews/:seller_id",middleware.isloggedin,function(req,res){
 //view particular order
 app.get("/view_order/:order_id",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//aggregate on order
 		order.aggregate([
 			{
+				//matching order_id and token_id with order
 				$match:{
 					$expr:{
 						$and:[
@@ -2247,6 +2454,7 @@ app.get("/view_order/:order_id",middleware.isloggedin,function(req,res){
 				},
                
 			},
+			//lookup on reviews
 			{
 				$lookup:{
 					from:"reviews",
@@ -2309,21 +2517,28 @@ app.get("/view_order/:order_id",middleware.isloggedin,function(req,res){
 		});
 	});
 });
-//trending
+//trending API
 app.get("/trending/:option",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//find user
 		user.findOne({_id:tokenv._id},function(err1,result1){
 			if(result1)
 			{
+				//check params option if it is delivery and pick_only
 				if(req.params.option === "delivery" || req.params.option === "pickup_only")
 				{
+					//aggregate apply on item
 					item.aggregate([
 						{
+							//lookup on user for getting user detail
 							$lookup: {
 								from: "users",
 								let: { seller_id: "$seller_id",active:"$i_active"},
+								//pipeline to get required data
 								pipeline: [
+									//apply geonear to get distance of around 5Km
 									{
 										$geoNear: {
 											near: { type: "point", coordinates: [result1.long, result1.lat] },
@@ -2333,6 +2548,7 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 											spherical: true
 										}
 									},
+									//matching data 
 									{
 										$match: {
 											$expr: {
@@ -2345,6 +2561,7 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 											}
 										}
 									},
+									//matching delivery options
 									{
 										$match: {
 											$expr: {
@@ -2354,6 +2571,7 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 											}
 										}
 									},
+									//show distance calculated
 									{
 										$project: {
 											"dist.calculated": 1
@@ -2367,6 +2585,7 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 						{
 							$unwind:"$seller"
 						},
+						//lookup on favorite collection to get that if user liked this item
 						{
 							$lookup:{
 								from:"favorites",
@@ -2389,6 +2608,7 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 								as:"fav" 
 							}
 						},
+						//lookup on favorite collection to get that if user liked this item
 						{
 							$lookup:{
 								from:"favorites",
@@ -2417,6 +2637,7 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 								preserveNullAndEmptyArrays:true
 							}
 						},  
+						//limit on  item to give only 5 records
 						{
 							$limit:5
 						},
@@ -2473,22 +2694,30 @@ app.get("/trending/:option",middleware.isloggedin,function(req,res){
 //new item on the App
 app.get("/new-items", middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token, "creation").then(tokenv => {
+		//find user on user collection
 		user.findOne({ _id: tokenv._id }, function (err, result) {
 			if (result) {
+				//aggregate on item
 				item.aggregate([
+					//sort in descending order
 					{
 						$sort: { "date": -1 }
 					},
+					//limit apply to get 10 records
 					{
 						$limit:10
 					},
+					//lookup on user to get user detail
 					{
 						$lookup: {
 							from: "users",
 							let: { seller_id: "$seller_id",active:"$i_active"},
+							//pipeline to get required data
 							pipeline: [
 								{
+									//use geonear to calculate distance 
 									$geoNear: {
 										near: { type: "point", coordinates: [result.long, result.lat] },
 										distanceField: "dist.calculated",
@@ -2497,6 +2726,7 @@ app.get("/new-items", middleware.isloggedin, function (req, res) {
 										spherical: true
 									}
 								},
+								//matching required check
 								{
 									$match: {
 										$expr: {
@@ -2509,6 +2739,7 @@ app.get("/new-items", middleware.isloggedin, function (req, res) {
 										}
 									}
 								},
+								//check delivery available on seller delivery option
 								{
 									$match: {
 										$expr: {
@@ -2528,6 +2759,7 @@ app.get("/new-items", middleware.isloggedin, function (req, res) {
 							as: "seller"
 						}
 					},
+					//lookup on favorite to get favorite data
 					{
 						$lookup:{
 							from:"favorites",
@@ -2600,14 +2832,18 @@ app.get("/new-items", middleware.isloggedin, function (req, res) {
 //pickup
 app.post("/pickup",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//check searching is auto 
 	if(req.body.option==="auto")
 	{
 		jwtVerify(token, "creation").then(tokenv => {
+			//find id on user collection
 			user.findOne({ _id: tokenv._id}, function (err, result)
 			{
 				if(result){
+					//aggregate on user for getting user detail
 					user.aggregate([
 						{
+							//geonear applied for getting calculated distance
 							$geoNear: {
 								near: { type: "point", coordinates: [result.long, result.lat] },
 								distanceField: "dist.calculated",
@@ -2616,6 +2852,7 @@ app.post("/pickup",middleware.isloggedin,function(req,res){
 								spherical: true
 							}
 						},
+						//matching verified seller
 						{
 							$match:{
 								$expr:{
@@ -2626,6 +2863,7 @@ app.post("/pickup",middleware.isloggedin,function(req,res){
 								}
 							}
 						},
+						//lookup on reviews to getting reviews detail
 						{
 							$lookup:{
 								from:"reviews",
@@ -2634,6 +2872,7 @@ app.post("/pickup",middleware.isloggedin,function(req,res){
 								as:"reviews"
 							}
 						},
+						//project apply to getting particular data
 						{
 							$project: {
 								"reviews":{$avg:"$reviews.star"},
@@ -2742,15 +2981,20 @@ app.post("/pickup",middleware.isloggedin,function(req,res){
 //openning item
 app.get("/view_item1/:item_id", middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token, "creation").then(tokenv => {
+		//find user on user collection
 		user.findOne({ _id: tokenv._id }, function (err, result) {
 			if(result){
+				//aggregate on item to get particular data
 				item.aggregate([
 					{
+						//apply match for particular item
 						$match:{
 							"_id":mongoose.Types.ObjectId(req.params.item_id)
 						}
 					},
+					//lookup on favorites collection to get favorites data
 					{
 						$lookup:{
 							from:"favorites",
@@ -2775,12 +3019,15 @@ app.get("/view_item1/:item_id", middleware.isloggedin, function (req, res) {
 							preserveNullAndEmptyArrays:true
 						}
 					},
+					//lookup on user collection to get particular user
 					{
 						$lookup:{
 							from:"users",
 							let:{sellerid:"$seller_id"},
+							//pipeline to get required data
 							pipeline:[
 								{
+									//get distance from geonear
 									$geoNear:{
 										near: { type: "point", coordinates: [result.long, result.lat] },
 										distanceField: "dist.calculated",
@@ -2789,6 +3036,7 @@ app.get("/view_item1/:item_id", middleware.isloggedin, function (req, res) {
 										spherical: true
 									}
 								},
+								//matching seller_id
 								{
 									$match:{
 										$expr:{
@@ -2798,6 +3046,7 @@ app.get("/view_item1/:item_id", middleware.isloggedin, function (req, res) {
 										}
 									}
 								},
+								//lookup on reviews to get review on seller
 								{
 									$lookup:{
 										from:"reviews",
@@ -2868,14 +3117,19 @@ app.get("/view_item1/:item_id", middleware.isloggedin, function (req, res) {
 //show order list to seller 
 app.get("/show_orders_list_to_seller",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{ 
+		//find seller data
 		seller.findOne({_id:tokenv._id},function(err,result){
 			if(result && result.verified_seller)
 			{
+				//aggregate on order
 				order.aggregate([
+					//sort data in descending order
 					{
 						$sort:{"date":-1}
 					},
+					//match the required fields
 					{
 						$match:{
 							$expr:{
@@ -2887,6 +3141,7 @@ app.get("/show_orders_list_to_seller",middleware.isloggedin,function(req,res){
                             
 						}
 					},
+					//lookup on users for user data
 					{
 						$lookup:{
 							from:"users",
@@ -2895,6 +3150,7 @@ app.get("/show_orders_list_to_seller",middleware.isloggedin,function(req,res){
 							as:"user_detail"   
 						}
 					},
+					//unwind data
 					{
 						$unwind:"$user_detail"
 					},
@@ -2949,17 +3205,23 @@ app.get("/show_orders_list_to_seller",middleware.isloggedin,function(req,res){
 //status changing of order_list
 app.post("/show_order_status",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//find seller id
 		seller.findOne({_id:tokenv._id},function(err,result){
+			//check the verified seller
 			if(result && result.verified_seller)
 			{
+				//find the id in order
 				order.findOne({seller_id:tokenv._id,_id:req.body.order_id},function(err1,result1){
 					if(result1)
 					{
+						//check for seller_status
 						if(result1.seller_status==="request")
 						{
 							if(req.body.status ==="accept")
 							{
+								//update the order data
 								order.updateOne({_id:req.body.order_id},{seller_status:"pending",order_status:"track"},function(err2,result2){
 									if(result2 && result2.nModified)
 									{
@@ -2978,8 +3240,10 @@ app.post("/show_order_status",middleware.isloggedin,function(req,res){
 									}
 								});
 							}
+							//check for reject
 							else if(req.body.status ==="reject")
 							{
+								//update order data
 								order.updateOne({_id:req.body.order_id},{seller_status:"reject",order_status:"cancel"},function(err2,result2){
 									if(result2 && result2.nModified)
 									{
@@ -3006,10 +3270,13 @@ app.post("/show_order_status",middleware.isloggedin,function(req,res){
 								});
 							}
 						}
+						//check for pending status
 						else if(result1.seller_status==="pending")
 						{
+							//check for submit
 							if(req.body.status === "submit")
 							{
+								//update the order
 								order.updateOne({_id:req.body.order_id},{seller_status:"completed",order_status:"completed"},function(err3,result3){
 									if(result3 && result3.nModified)
 									{
@@ -3037,6 +3304,7 @@ app.post("/show_order_status",middleware.isloggedin,function(req,res){
 							}
                             
 						}
+						//if all checks are fails
 						else
 						{
 							return res.status(400).json({
@@ -3066,15 +3334,21 @@ app.post("/show_order_status",middleware.isloggedin,function(req,res){
 		});
 	});
 });
+//cancel order by customer while in pending state
 app.post("/cancel_order_for_user",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//check for order_id
 		if(req.body.order_id)
 		{
+			//find order
 			order.findOne({_id:req.body.order_id,user_id:tokenv._id},function(error,result){
 				if(result)
 				{
+					//checking the status
 					if(result.order_status === "pending" && result.seller_status === "request"){
+						//update data to cancel
 						order.updateOne({_id:req.body.order_id},{seller_status:"reject",order_status:"cancel"},function(u_err,u_result){
 							if(u_result)
 							{
@@ -3135,6 +3409,7 @@ app.post("/cancel_order_for_user",middleware.isloggedin,function(req,res){
 });
 //change-password
 app.post("/change-password", middleware.isloggedin, function (req, res) {
+	//check for password length
 	if ((req.body.new_password).length < 6) {
 		return res.status(400).json({
 			error: true,
@@ -3142,15 +3417,22 @@ app.post("/change-password", middleware.isloggedin, function (req, res) {
 		});
 	}
 	var token = req.headers.authorization.split(" ")[1];
+	//checking if this fields are available
 	if (req.body.old_password && req.body.new_password && req.body.confirm_password) {
+		//verify token
 		jwtVerify(token, "creation").then(tokenv => {
+			//find id in user collection
 			user.findOne({ _id: tokenv._id }, function (err, result) {
 				if (result) {
+					//compare password using bcrypt
 					bcrypt.compare(req.body.old_password, result.password, function (b_err, b_result) {
 						if (b_result) {
+							//matching password
 							if (req.body.new_password === req.body.confirm_password) {
+								//convert password to encrypted password through bcrypt
 								bcrypt.hash(req.body.new_password, saltRounds, function (bb_err, bb_result) {
 									if (bb_result) {
+										//update user password
 										user.updateOne({ _id: tokenv._id }, { password: bb_result }, function (u_err, u_result) {
 											if (u_result) {
 												return res.json({
@@ -3209,11 +3491,15 @@ app.post("/change-password", middleware.isloggedin, function (req, res) {
 //search
 app.get("/search/:search",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
+	//verify token
 	jwtVerify(token,"creation").then(tokenv=>{
+		//finding data on user
 		user.findOne({_id:tokenv._id},function(err,result){
 			if(result)
+			//aggregate apply to item to get particular data
 			{    item.aggregate([
 				{
+					//matching seller_id with token_id
 					$match:{
 						$expr:{
 							$and:[
@@ -3222,6 +3508,7 @@ app.get("/search/:search",middleware.isloggedin,function(req,res){
 						}
 					}
 				},
+				//matching data with the help regex 
 				{
 					$match:{
 						$or:[
@@ -3231,12 +3518,15 @@ app.get("/search/:search",middleware.isloggedin,function(req,res){
 						]
 					}
 				},
+				//lookup on user
 				{
 					$lookup: {
 						from: "users",
 						let: { seller_id: "$seller_id",active:"$i_active"},
+						//apply pipeline to match
 						pipeline: [
 							{
+								//get distance with geonear
 								$geoNear: {
 									near: { type: "point", coordinates: [result.long, result.lat] },
 									distanceField: "dist.calculated",
@@ -3245,6 +3535,7 @@ app.get("/search/:search",middleware.isloggedin,function(req,res){
 									spherical: true
 								}
 							},
+							//matching required condition
 							{
 								$match: {
 									$expr: {
@@ -3257,6 +3548,7 @@ app.get("/search/:search",middleware.isloggedin,function(req,res){
 									}
 								}
 							},
+							//matching data with delivery option
 							{
 								$match: {
 									$expr: {
@@ -3316,15 +3608,17 @@ app.get("/search/:search",middleware.isloggedin,function(req,res){
 });
 //fetching seller information 
 app.get("/fetch_seller/:seller_id",middleware.isloggedin,function(req,res){
+	//finding data on user collection
 	user.findOne({_id:mongoose.Types.ObjectId(req.params.seller_id)},function(err,result){
 		if(result)
 		{
+			//add object for show to user
 			var add = {};
 			add.delivery_address = result.delivery_address;
 			add.image = result.image;
 			add.name = result.name;
 			add.bio = result.bio;
-			res.json({
+			return res.json({
 				sucess:true,
 				data:add,
 				message:"Sucessfully fetched seller data"
