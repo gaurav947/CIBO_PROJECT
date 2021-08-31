@@ -798,6 +798,7 @@ app.post("/seller", upload.any(), middleware.isloggedin, function (req, res) {
 	}
 
 });
+//Viewing delivery_option for seller
 app.get("/view_delivery-option",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
 	jwtVerify(token,"creation").then(tokenv=>{
@@ -819,7 +820,7 @@ app.get("/view_delivery-option",middleware.isloggedin,function(req,res){
 		});
 	});
 });
-//set schedule for sellerqq
+//set schedule for seller
 app.post("/schedule", middleware.isloggedin, function (req, res) {
 	var token = req.headers.authorization.split(" ")[1];
 	if (req.body.date && req.body.start && req.body.end) {
@@ -857,6 +858,7 @@ app.post("/schedule", middleware.isloggedin, function (req, res) {
 		});
 	}
 });
+//viewing time schedule
 app.get("/view_schedule",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
 	jwtVerify(token,"creation").then(tokenv=>{
@@ -882,7 +884,7 @@ app.get("/view_schedule",middleware.isloggedin,function(req,res){
 app.get("/",(req,res)=>{
 	res.send("hellow");
 });
-//forget 
+//3 API's for forget 
 var valid = 0;
 app.post("/forget", function (req, res) {
 	if(/^[a-zA-Z0-9\.]+[@][a-z]+[\.][a-z]{2,3}$/.test(req.body.email) == false && req.body.email) {
@@ -1232,6 +1234,7 @@ app.get("/get-blogs",middleware.isloggedin,function(req,res){
 		});
 	});
 });
+//seller blogs reviewed by user
 app.get("/get-blogs-of-seller/:seller_id",middleware.isloggedin,function(req,res){
 	var token = req.headers.authorization.split(" ")[1];
 	jwtVerify(token,"creation").then(tokenv=>{
@@ -3063,6 +3066,73 @@ app.post("/show_order_status",middleware.isloggedin,function(req,res){
 		});
 	});
 });
+app.post("/cancel_order_for_user",middleware.isloggedin,function(req,res){
+	var token = req.headers.authorization.split(" ")[1];
+	jwtVerify(token,"creation").then(tokenv=>{
+		if(req.body.order_id)
+		{
+			order.findOne({_id:req.body.order_id,user_id:tokenv._id},function(error,result){
+				if(result)
+				{
+					if(result.order_status === "pending" && result.seller_status === "request"){
+						order.updateOne({_id:req.body.order_id},{seller_status:"reject",order_status:"cancel"},function(u_err,u_result){
+							if(u_result)
+							{
+								return res.json({
+									sucess:true,
+									message:"Your order is canceled successfully"
+								});
+							}
+							else if(u_err)
+							{
+								return res.status(400).json({
+									error:true,
+									err_message:u_err,
+									message:"Error while canceling the order"
+								});
+							}
+							else
+							{
+								return res.status(400).json({
+									error:true,
+									message:"Something went wrong"
+								});
+							}
+						});
+					}
+					else
+					{
+						return res.status(400).json({
+							error:true,
+							message:"your order status not in Pending"
+						});
+					}
+				}
+				else
+				{
+					return res.status(400).json({
+						error:true,
+						err_message:error,
+						message:"Something went wrong"
+					});
+				}
+		    });
+		}
+		else
+		{
+			res.status(400).json({
+				error:true,
+				message:"Please provide order_id"
+			});
+		}
+	}).catch(err=>{
+		return res.status(400).json({
+			error:true,
+			err_message:err,
+			message:"Something went wrong"
+		});
+	});
+});
 //change-password
 app.post("/change-password", middleware.isloggedin, function (req, res) {
 	if ((req.body.new_password).length < 6) {
@@ -3244,6 +3314,7 @@ app.get("/search/:search",middleware.isloggedin,function(req,res){
         
 	});
 });
+//fetching seller information 
 app.get("/fetch_seller/:seller_id",middleware.isloggedin,function(req,res){
 	user.findOne({_id:mongoose.Types.ObjectId(req.params.seller_id)},function(err,result){
 		if(result)
